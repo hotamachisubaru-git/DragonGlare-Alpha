@@ -38,9 +38,19 @@ public partial class Form1 : Form
     private bool isNpcDialogOpen;
     private Point playerTile = PlayerStartTile;
     private Point npcTile = new(12, 7);
+    private int playerHp = 20;
+    private int playerMp = 2;
+    private int playerGold = 220;
     private bool fontLoaded;
     private int frameCounter;
     private int startupFadeFrames = 20;
+    private int battleCursorRow;
+    private int battleCursorColumn;
+    private int shopPromptCursor;
+    private int shopItemCursor;
+    private ShopPhase shopPhase = ShopPhase.Welcome;
+    private string battleMessage = "まものが あらわれた！";
+    private string shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
     private BgmTrack? currentBgmTrack;
     private string menuNotice = string.Empty;
     private int menuNoticeFrames;
@@ -61,6 +71,22 @@ public partial class Form1 : Form
         ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
         ["K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"],
         ["U", "V", "W", "X", "Y", "Z", "-", "'", "DEL", "END"]
+    ];
+
+    private static readonly string[,] BattleCommands =
+    {
+        { "こうげき", "じゅもん" },
+        { "どうぐ", "にげる" }
+    };
+
+    private static readonly (string Name, int Price)[] ShopCatalog =
+    [
+        ("ぼう", 16),
+        ("こんぼう", 32),
+        ("とげのぼう", 64),
+        ("ぼくとう", 82),
+        ("いしのおの", 128),
+        ("どうのつるぎ", 196)
     ];
 
     public Form1()
@@ -116,6 +142,12 @@ public partial class Form1 : Form
                 break;
             case GameState.Field:
                 DrawField(e.Graphics);
+                break;
+            case GameState.Battle:
+                DrawBattle(e.Graphics);
+                break;
+            case GameState.ShopBuy:
+                DrawShopBuy(e.Graphics);
                 break;
         }
 
@@ -324,6 +356,12 @@ public partial class Form1 : Form
             case GameState.Field:
                 UpdateField();
                 break;
+            case GameState.Battle:
+                UpdateBattle();
+                break;
+            case GameState.ShopBuy:
+                UpdateShopBuy();
+                break;
         }
 
         UpdateBgm();
@@ -435,6 +473,18 @@ public partial class Form1 : Form
             return;
         }
 
+        if (WasPressed(Keys.B))
+        {
+            EnterBattle();
+            return;
+        }
+
+        if (WasPressed(Keys.V))
+        {
+            EnterShopBuy();
+            return;
+        }
+
         if (movementCooldown > 0)
         {
             movementCooldown--;
@@ -476,10 +526,159 @@ public partial class Form1 : Form
         }
     }
 
+    private void UpdateBattle()
+    {
+        if (WasPressed(Keys.Up) || WasPressed(Keys.W))
+        {
+            battleCursorRow = Math.Max(0, battleCursorRow - 1);
+        }
+        else if (WasPressed(Keys.Down) || WasPressed(Keys.S))
+        {
+            battleCursorRow = Math.Min(1, battleCursorRow + 1);
+        }
+        else if (WasPressed(Keys.Left) || WasPressed(Keys.A))
+        {
+            battleCursorColumn = Math.Max(0, battleCursorColumn - 1);
+        }
+        else if (WasPressed(Keys.Right) || WasPressed(Keys.D))
+        {
+            battleCursorColumn = Math.Min(1, battleCursorColumn + 1);
+        }
+
+        if (WasPressed(Keys.Escape))
+        {
+            gameState = GameState.Field;
+            return;
+        }
+
+        if (!WasPressed(Keys.Enter))
+        {
+            return;
+        }
+
+        var command = BattleCommands[battleCursorRow, battleCursorColumn];
+        switch (command)
+        {
+            case "こうげき":
+                battleMessage = "まものを やっつけた！";
+                break;
+            case "じゅもん":
+                if (playerMp <= 0)
+                {
+                    battleMessage = "MPが たりない！";
+                    break;
+                }
+
+                playerMp--;
+                battleMessage = "メラ！ まものに 12ダメージ！";
+                break;
+            case "どうぐ":
+                battleMessage = "どうぐは まだない。";
+                break;
+            case "にげる":
+                battleMessage = "うまく にげきった！";
+                gameState = GameState.Field;
+                break;
+        }
+    }
+
+    private void UpdateShopBuy()
+    {
+        if (shopPhase == ShopPhase.Welcome)
+        {
+            if (WasPressed(Keys.Up) || WasPressed(Keys.W) || WasPressed(Keys.Down) || WasPressed(Keys.S))
+            {
+                shopPromptCursor = 1 - shopPromptCursor;
+            }
+
+            if (WasPressed(Keys.Escape))
+            {
+                gameState = GameState.Field;
+                return;
+            }
+
+            if (!WasPressed(Keys.Enter))
+            {
+                return;
+            }
+
+            if (shopPromptCursor == 0)
+            {
+                shopPhase = ShopPhase.BuyList;
+                shopItemCursor = 0;
+                shopMessage = "＊「なにを かっていくかい？」";
+                return;
+            }
+
+            gameState = GameState.Field;
+            return;
+        }
+
+        var maxIndex = ShopCatalog.Length;
+        if (WasPressed(Keys.Up) || WasPressed(Keys.W))
+        {
+            shopItemCursor = Math.Max(0, shopItemCursor - 1);
+        }
+        else if (WasPressed(Keys.Down) || WasPressed(Keys.S))
+        {
+            shopItemCursor = Math.Min(maxIndex, shopItemCursor + 1);
+        }
+
+        if (WasPressed(Keys.Escape))
+        {
+            shopPhase = ShopPhase.Welcome;
+            shopMessage = "＊「ほかに ようじは あるかい？」";
+            return;
+        }
+
+        if (!WasPressed(Keys.Enter))
+        {
+            return;
+        }
+
+        if (shopItemCursor == maxIndex)
+        {
+            shopPhase = ShopPhase.Welcome;
+            shopMessage = "＊「また きてくれよな！」";
+            return;
+        }
+
+        var item = ShopCatalog[shopItemCursor];
+        if (playerGold < item.Price)
+        {
+            shopMessage = "＊「おかねが たりないね。」";
+            return;
+        }
+
+        playerGold -= item.Price;
+        shopMessage = $"＊「{item.Name}を かった！」";
+    }
+
+    private void EnterBattle()
+    {
+        battleCursorRow = 0;
+        battleCursorColumn = 0;
+        battleMessage = "まものが あらわれた！";
+        gameState = GameState.Battle;
+        PlaySe(SoundEffect.Dialog);
+    }
+
+    private void EnterShopBuy()
+    {
+        shopPhase = ShopPhase.Welcome;
+        shopPromptCursor = 0;
+        shopItemCursor = 0;
+        shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
+        gameState = GameState.ShopBuy;
+        PlaySe(SoundEffect.Dialog);
+    }
+
     private void UpdateBgm()
     {
         var desiredTrack = gameState switch
         {
+            GameState.Battle => BgmTrack.Field,
+            GameState.ShopBuy => BgmTrack.Field,
             GameState.Field when IsInsideCastleZone(playerTile) => BgmTrack.Castle,
             GameState.Field => BgmTrack.Field,
             _ => BgmTrack.MainMenu
@@ -583,6 +782,92 @@ public partial class Form1 : Form
 
     private void DrawField(Graphics g)
     {
+        DrawFieldScene(g);
+
+        DrawWindow(g, new Rectangle(8, 8, 430, 84));
+        DrawText(g, GetText("fieldHelp"), 20, 26, smallFont);
+        DrawText(g, IsInsideCastleZone(playerTile) ? GetText("areaCastle") : GetText("areaField"), 20, 56, smallFont);
+
+        if (isNpcDialogOpen)
+        {
+            DrawWindow(g, new Rectangle(46, 320, 548, 138));
+            DrawText(g, GetText("npcLine1"), 72, 354, smallFont);
+            DrawText(g, GetText("npcLine2"), 72, 392, smallFont);
+        }
+    }
+
+    private void DrawBattle(Graphics g)
+    {
+        DrawMenuBackdrop(g);
+
+        var statusName = playerName.Length == 0 ? "のりたま" : playerName.ToString();
+        DrawWindow(g, new Rectangle(76, 34, 246, 132));
+        DrawText(g, statusName, 102, 52);
+        DrawText(g, $"HP: {playerHp}", 102, 88);
+        DrawText(g, $"MP: {playerMp}", 102, 124);
+
+        DrawWindow(g, new Rectangle(332, 34, 236, 40));
+        DrawText(g, "こうどう", 420, 46);
+
+        DrawWindow(g, new Rectangle(332, 74, 236, 92));
+        for (var row = 0; row < 2; row++)
+        {
+            for (var column = 0; column < 2; column++)
+            {
+                var x = 366 + (column * 108);
+                var y = 92 + (row * 36);
+                if (battleCursorRow == row && battleCursorColumn == column)
+                {
+                    DrawSelectionMarker(g, x - 24, y + 10);
+                }
+
+                DrawText(g, BattleCommands[row, column], x, y);
+            }
+        }
+
+        DrawBattleEnemy(g, new Point(320, 210));
+
+        DrawWindow(g, new Rectangle(112, 248, 416, 196));
+        DrawText(g, battleMessage, 136, 282);
+    }
+
+    private void DrawShopBuy(Graphics g)
+    {
+        DrawFieldScene(g);
+
+        DrawWindow(g, new Rectangle(44, 74, 240, 120));
+        DrawOption(g, shopPhase == ShopPhase.Welcome && shopPromptCursor == 0, 114, 104, "はい");
+        DrawOption(g, shopPhase == ShopPhase.Welcome && shopPromptCursor == 1, 114, 142, "いいえ");
+
+        DrawWindow(g, new Rectangle(332, 34, 240, 292));
+        DrawText(g, "しょうひん", 404, 48);
+        for (var i = 0; i < ShopCatalog.Length; i++)
+        {
+            var rowY = 80 + (i * 34);
+            if (shopPhase == ShopPhase.BuyList && shopItemCursor == i)
+            {
+                DrawSelectionMarker(g, 348, rowY + 10);
+            }
+
+            DrawText(g, ShopCatalog[i].Name, 372, rowY);
+            DrawText(g, ShopCatalog[i].Price.ToString(), 500, rowY);
+        }
+
+        var quitY = 80 + (ShopCatalog.Length * 34) + 10;
+        if (shopPhase == ShopPhase.BuyList && shopItemCursor == ShopCatalog.Length)
+        {
+            DrawSelectionMarker(g, 348, quitY + 10);
+        }
+
+        DrawText(g, "やめる", 372, quitY);
+        DrawText(g, $"G {playerGold}", 372, 294, smallFont);
+
+        DrawWindow(g, new Rectangle(92, 250, 426, 194));
+        DrawText(g, shopMessage, 120, 284);
+    }
+
+    private void DrawFieldScene(Graphics g)
+    {
         for (var y = 0; y < map.GetLength(0); y++)
         {
             for (var x = 0; x < map.GetLength(1); x++)
@@ -608,17 +893,25 @@ public partial class Form1 : Form
 
         DrawTileEntity(g, npcTile, Color.Cyan);
         DrawTileEntity(g, playerTile, Color.White);
+    }
 
-        DrawWindow(g, new Rectangle(8, 8, 430, 84));
-        DrawText(g, GetText("fieldHelp"), 20, 26, smallFont);
-        DrawText(g, IsInsideCastleZone(playerTile) ? GetText("areaCastle") : GetText("areaField"), 20, 56, smallFont);
+    private void DrawBattleEnemy(Graphics g, Point center)
+    {
+        using var bodyBrush = new SolidBrush(Color.FromArgb(220, 230, 242));
+        using var eyeBrush = new SolidBrush(Color.Black);
+        using var outlinePen = new Pen(Color.FromArgb(90, 150, 220), 2);
+        using var hornPen = new Pen(Color.FromArgb(220, 230, 242), 3);
 
-        if (isNpcDialogOpen)
-        {
-            DrawWindow(g, new Rectangle(46, 320, 548, 138));
-            DrawText(g, GetText("npcLine1"), 72, 354, smallFont);
-            DrawText(g, GetText("npcLine2"), 72, 392, smallFont);
-        }
+        var body = new Rectangle(center.X - 16, center.Y - 12, 32, 24);
+        g.FillEllipse(bodyBrush, body);
+        g.DrawEllipse(outlinePen, body);
+
+        g.DrawLine(hornPen, center.X - 10, center.Y - 14, center.X - 17, center.Y - 20);
+        g.DrawLine(hornPen, center.X + 10, center.Y - 14, center.X + 17, center.Y - 20);
+
+        g.FillEllipse(eyeBrush, center.X - 8, center.Y - 4, 4, 4);
+        g.FillEllipse(eyeBrush, center.X + 4, center.Y - 4, 4, 4);
+        g.DrawLine(outlinePen, center.X - 6, center.Y + 5, center.X + 6, center.Y + 5);
     }
 
     private void DrawTileEntity(Graphics g, Point tile, Color color)
@@ -711,8 +1004,8 @@ public partial class Form1 : Form
         var name = playerName.Length == 0 ? "PLAYER" : playerName.ToString();
         return (selectedLanguage, key) switch
         {
-            (UiLanguage.Japanese, "fieldHelp") => "やじるし:いどう  ENTER:はなす",
-            (UiLanguage.English, "fieldHelp") => "ARROWS: MOVE  ENTER: TALK",
+            (UiLanguage.Japanese, "fieldHelp") => "やじるし:いどう  ENTER:はなす  B:バトル  V:ショップ",
+            (UiLanguage.English, "fieldHelp") => "ARROWS: MOVE  ENTER: TALK  B:BATTLE  V:SHOP",
             (UiLanguage.Japanese, "areaField") => "フィールドBGM: SFC_field",
             (UiLanguage.English, "areaField") => "FIELD BGM: SFC_field",
             (UiLanguage.Japanese, "areaCastle") => "おしろBGM: SFC_castle",
@@ -733,6 +1026,9 @@ public partial class Form1 : Form
         nameCursorColumn = 0;
         playerTile = PlayerStartTile;
         playerName.Clear();
+        playerHp = 20;
+        playerMp = 2;
+        playerGold = 220;
         isNpcDialogOpen = false;
         movementCooldown = 0;
         gameState = GameState.LanguageSelection;
@@ -767,6 +1063,9 @@ public partial class Form1 : Form
 
             var loadedTile = new Point(save.PlayerX, save.PlayerY);
             playerTile = IsWalkableTile(loadedTile) && loadedTile != npcTile ? loadedTile : PlayerStartTile;
+            playerHp = 20;
+            playerMp = 2;
+            playerGold = 220;
             isNpcDialogOpen = false;
             movementCooldown = 0;
             return true;
@@ -906,7 +1205,15 @@ public partial class Form1 : Form
         ModeSelect,
         LanguageSelection,
         NameInput,
-        Field
+        Field,
+        Battle,
+        ShopBuy
+    }
+
+    private enum ShopPhase
+    {
+        Welcome,
+        BuyList
     }
 
     private enum UiLanguage
