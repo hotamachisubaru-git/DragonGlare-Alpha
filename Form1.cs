@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using Timer = System.Windows.Forms.Timer;
 
 namespace DragonGlareAlpha;
@@ -11,6 +12,7 @@ public partial class Form1 : Form
     private const int VirtualWidth = 640;
     private const int VirtualHeight = 480;
     private const int TileSize = 32;
+    private static readonly Point PlayerStartTile = new(3, 12);
 
     private readonly Timer gameTimer = new() { Interval = 16 };
     private readonly HashSet<Keys> heldKeys = [];
@@ -26,17 +28,22 @@ public partial class Form1 : Form
     private Font uiFont = new("Consolas", 20, GraphicsUnit.Pixel);
     private Font smallFont = new("Consolas", 16, GraphicsUnit.Pixel);
 
-    private GameState gameState = GameState.LanguageSelection;
+    private GameState gameState = GameState.ModeSelect;
     private UiLanguage selectedLanguage = UiLanguage.Japanese;
+    private int modeCursor;
     private int languageCursor;
     private int nameCursorRow;
     private int nameCursorColumn;
     private int movementCooldown;
     private bool isNpcDialogOpen;
-    private Point playerTile = new(3, 12);
+    private Point playerTile = PlayerStartTile;
     private Point npcTile = new(12, 7);
     private bool fontLoaded;
     private BgmTrack? currentBgmTrack;
+    private string menuNotice = string.Empty;
+    private int menuNoticeFrames;
+
+    private string SaveFilePath => Path.Combine(AppContext.BaseDirectory, "savegame.json");
 
     private static readonly string[][] JapaneseNameTable =
     [
@@ -96,6 +103,9 @@ public partial class Form1 : Form
 
         switch (gameState)
         {
+            case GameState.ModeSelect:
+                DrawModeSelect(e.Graphics);
+                break;
             case GameState.LanguageSelection:
                 DrawLanguageSelection(e.Graphics);
                 break;
@@ -128,6 +138,7 @@ public partial class Form1 : Form
 
     private void CleanupResources()
     {
+        SaveGame();
         gameTimer.Stop();
         gameTimer.Dispose();
         bgmPlayer.Stop();
@@ -274,8 +285,20 @@ public partial class Form1 : Form
 
     private void UpdateGame()
     {
+        if (menuNoticeFrames > 0)
+        {
+            menuNoticeFrames--;
+            if (menuNoticeFrames == 0)
+            {
+                menuNotice = string.Empty;
+            }
+        }
+
         switch (gameState)
         {
+            case GameState.ModeSelect:
+                UpdateModeSelect();
+                break;
             case GameState.LanguageSelection:
                 UpdateLanguageSelection();
                 break;
@@ -288,6 +311,39 @@ public partial class Form1 : Form
         }
 
         UpdateBgm();
+    }
+
+    private void UpdateModeSelect()
+    {
+        if (WasPressed(Keys.Up) || WasPressed(Keys.W))
+        {
+            modeCursor = 0;
+        }
+        else if (WasPressed(Keys.Down) || WasPressed(Keys.S))
+        {
+            modeCursor = 1;
+        }
+
+        if (!WasPressed(Keys.Enter))
+        {
+            return;
+        }
+
+        if (modeCursor == 0)
+        {
+            StartNewGame();
+            return;
+        }
+
+        if (TryLoadGame())
+        {
+            gameState = GameState.Field;
+            return;
+        }
+
+        menuNotice = "NO SAVE DATA / セーブデータがありません";
+        menuNoticeFrames = 180;
+        PlaySe(SoundEffect.Collision);
     }
 
     private void UpdateLanguageSelection()
@@ -308,6 +364,11 @@ public partial class Form1 : Form
             playerName.Clear();
             nameCursorRow = 0;
             nameCursorColumn = 0;
+        }
+
+        if (WasPressed(Keys.Escape))
+        {
+            gameState = GameState.ModeSelect;
         }
     }
 
@@ -441,6 +502,23 @@ public partial class Form1 : Form
     private static bool IsInsideCastleZone(Point tile)
     {
         return tile.X >= 1 && tile.X <= 4 && tile.Y >= 1 && tile.Y <= 4;
+    }
+
+    private void DrawModeSelect(Graphics g)
+    {
+        DrawText(g, "メインメニュー", 34, 58);
+
+        DrawWindow(g, new Rectangle(116, 236, 410, 198));
+        DrawText(g, "モードをせんたくしてください", 152, 268, smallFont);
+        DrawOption(g, modeCursor == 0, 152, 305, "さいしょから  NEW GAME");
+        DrawOption(g, modeCursor == 1, 152, 344, "つづきから  LOAD GAME");
+        DrawText(g, "MODE SELECT", 152, 382);
+
+        if (!string.IsNullOrWhiteSpace(menuNotice))
+        {
+            DrawWindow(g, new Rectangle(84, 24, 472, 72));
+            DrawText(g, menuNotice, 104, 48, smallFont);
+        }
     }
 
     private void DrawLanguageSelection(Graphics g)
@@ -580,6 +658,83 @@ public partial class Form1 : Form
         };
     }
 
+    private void StartNewGame()
+    {
+        selectedLanguage = UiLanguage.Japanese;
+        languageCursor = 0;
+        nameCursorRow = 0;
+        nameCursorColumn = 0;
+        playerTile = PlayerStartTile;
+        playerName.Clear();
+        isNpcDialogOpen = false;
+        movementCooldown = 0;
+        gameState = GameState.LanguageSelection;
+    }
+
+    private bool TryLoadGame()
+    {
+        try
+        {
+            if (!File.Exists(SaveFilePath))
+            {
+                return false;
+            }
+
+            var json = File.ReadAllText(SaveFilePath);
+            var save = JsonSerializer.Deserialize<SaveData>(json);
+            if (save is null)
+            {
+                return false;
+            }
+
+            selectedLanguage = string.Equals(save.Language, "en", StringComparison.OrdinalIgnoreCase)
+                ? UiLanguage.English
+                : UiLanguage.Japanese;
+
+            playerName.Clear();
+            if (!string.IsNullOrWhiteSpace(save.Name))
+            {
+                var trimmedName = save.Name.Length > 10 ? save.Name[..10] : save.Name;
+                playerName.Append(trimmedName);
+            }
+
+            var loadedTile = new Point(save.PlayerX, save.PlayerY);
+            playerTile = IsWalkableTile(loadedTile) && loadedTile != npcTile ? loadedTile : PlayerStartTile;
+            isNpcDialogOpen = false;
+            movementCooldown = 0;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void SaveGame()
+    {
+        if (gameState != GameState.Field)
+        {
+            return;
+        }
+
+        var save = new SaveData
+        {
+            Language = selectedLanguage == UiLanguage.English ? "en" : "ja",
+            Name = playerName.ToString(),
+            PlayerX = playerTile.X,
+            PlayerY = playerTile.Y
+        };
+
+        try
+        {
+            var json = JsonSerializer.Serialize(save, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SaveFilePath, json);
+        }
+        catch
+        {
+        }
+    }
+
     private void MoveNameCursor(int deltaX, int deltaY)
     {
         var table = selectedLanguage == UiLanguage.Japanese ? JapaneseNameTable : EnglishNameTable;
@@ -607,6 +762,7 @@ public partial class Form1 : Form
             if (playerName.Length > 0)
             {
                 gameState = GameState.Field;
+                SaveGame();
             }
             return;
         }
@@ -625,20 +781,26 @@ public partial class Form1 : Form
         }
     }
 
-    private bool TryMovePlayer(Point movement)
+    private bool IsWalkableTile(Point tile)
     {
-        var target = new Point(playerTile.X + movement.X, playerTile.Y + movement.Y);
-        if (target.X < 0 || target.Y < 0 || target.X >= map.GetLength(1) || target.Y >= map.GetLength(0))
+        if (tile.X < 0 || tile.Y < 0 || tile.X >= map.GetLength(1) || tile.Y >= map.GetLength(0))
         {
             return false;
         }
 
-        if (map[target.Y, target.X] == 1 || target == npcTile)
+        return map[tile.Y, tile.X] != 1;
+    }
+
+    private bool TryMovePlayer(Point movement)
+    {
+        var target = new Point(playerTile.X + movement.X, playerTile.Y + movement.Y);
+        if (!IsWalkableTile(target) || target == npcTile)
         {
             return false;
         }
 
         playerTile = target;
+        SaveGame();
         return true;
     }
 
@@ -664,8 +826,17 @@ public partial class Form1 : Form
         heldKeys.Remove(e.KeyCode);
     }
 
+    private sealed class SaveData
+    {
+        public string Language { get; set; } = "ja";
+        public string Name { get; set; } = string.Empty;
+        public int PlayerX { get; set; }
+        public int PlayerY { get; set; }
+    }
+
     private enum GameState
     {
+        ModeSelect,
         LanguageSelection,
         NameInput,
         Field
