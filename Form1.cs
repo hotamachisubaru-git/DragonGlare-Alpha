@@ -39,6 +39,8 @@ public partial class Form1 : Form
     private Point playerTile = PlayerStartTile;
     private Point npcTile = new(12, 7);
     private bool fontLoaded;
+    private int frameCounter;
+    private int startupFadeFrames = 20;
     private BgmTrack? currentBgmTrack;
     private string menuNotice = string.Empty;
     private int menuNoticeFrames;
@@ -121,6 +123,13 @@ public partial class Form1 : Form
         {
             DrawWindow(e.Graphics, new Rectangle(8, 8, 624, 44));
             DrawText(e.Graphics, "TTF NOT FOUND: USING FALLBACK FONT", 20, 20);
+        }
+
+        if (startupFadeFrames > 0)
+        {
+            var alpha = (int)(255f * startupFadeFrames / 20f);
+            using var fadeBrush = new SolidBrush(Color.FromArgb(alpha, Color.Black));
+            e.Graphics.FillRectangle(fadeBrush, 0, 0, VirtualWidth, VirtualHeight);
         }
     }
 
@@ -285,6 +294,13 @@ public partial class Form1 : Form
 
     private void UpdateGame()
     {
+        frameCounter++;
+
+        if (startupFadeFrames > 0)
+        {
+            startupFadeFrames--;
+        }
+
         if (menuNoticeFrames > 0)
         {
             menuNoticeFrames--;
@@ -506,13 +522,14 @@ public partial class Form1 : Form
 
     private void DrawModeSelect(Graphics g)
     {
-        DrawText(g, "メインメニュー", 34, 58);
+        DrawMenuBackdrop(g);
+        DrawTitleText(g, "メインメニュー", 24, 60);
 
-        DrawWindow(g, new Rectangle(116, 236, 410, 198));
-        DrawText(g, "モードをせんたくしてください", 152, 268, smallFont);
-        DrawOption(g, modeCursor == 0, 152, 305, "さいしょから  NEW GAME");
-        DrawOption(g, modeCursor == 1, 152, 344, "つづきから  LOAD GAME");
-        DrawText(g, "MODE SELECT", 152, 382);
+        DrawWindow(g, new Rectangle(118, 236, 408, 172));
+        DrawText(g, "モードをせんたくしてください", 154, 268, smallFont);
+        DrawOption(g, modeCursor == 0, 154, 307, "さいしょから  NEW GAME");
+        DrawOption(g, modeCursor == 1, 154, 342, "つづきから  LOAD GAME");
+        DrawText(g, "MODE SELECT", 154, 377);
 
         if (!string.IsNullOrWhiteSpace(menuNotice))
         {
@@ -614,12 +631,16 @@ public partial class Form1 : Form
     private void DrawWindow(Graphics g, Rectangle rect)
     {
         using var background = new SolidBrush(Color.Black);
-        using var outerPen = new Pen(Color.FromArgb(0, 120, 255), 4);
-        using var innerPen = new Pen(Color.FromArgb(80, 180, 255), 2);
+        using var shadowBrush = new SolidBrush(Color.FromArgb(96, 0, 0, 0));
+        using var glowPen = new Pen(Color.FromArgb(0, 72, 255), 6);
+        using var outerPen = new Pen(Color.FromArgb(0, 120, 255), 3);
+        using var innerPen = new Pen(Color.FromArgb(132, 206, 255), 1);
 
+        g.FillRectangle(shadowBrush, rect.X + 6, rect.Y + 6, rect.Width, rect.Height);
         g.FillRectangle(background, rect);
+        g.DrawRectangle(glowPen, rect);
         g.DrawRectangle(outerPen, rect);
-        var innerRect = Rectangle.Inflate(rect, -5, -5);
+        var innerRect = Rectangle.Inflate(rect, -7, -7);
         g.DrawRectangle(innerPen, innerRect);
     }
 
@@ -627,7 +648,7 @@ public partial class Form1 : Form
     {
         if (selected)
         {
-            DrawText(g, "▶", x - 24, y);
+            DrawSelectionMarker(g, x - 28, y + 10);
         }
 
         DrawText(g, text, x, y);
@@ -637,6 +658,52 @@ public partial class Form1 : Form
     {
         using var brush = new SolidBrush(Color.White);
         g.DrawString(text, fontOverride ?? uiFont, brush, x, y);
+    }
+
+    private void DrawMenuBackdrop(Graphics g)
+    {
+        using var gradient = new LinearGradientBrush(
+            new Rectangle(0, 0, VirtualWidth, VirtualHeight),
+            Color.Black,
+            Color.FromArgb(0, 10, 22),
+            90f);
+        using var scanlinePen = new Pen(Color.FromArgb(24, 38, 80));
+        using var sideGlowBrush = new SolidBrush(Color.FromArgb(14, 0, 80, 255));
+
+        g.FillRectangle(gradient, 0, 0, VirtualWidth, VirtualHeight);
+
+        for (var y = 0; y < VirtualHeight; y += 4)
+        {
+            g.DrawLine(scanlinePen, 0, y, VirtualWidth, y);
+        }
+
+        g.FillRectangle(sideGlowBrush, 0, 0, 18, VirtualHeight);
+        g.FillRectangle(sideGlowBrush, VirtualWidth - 18, 0, 18, VirtualHeight);
+    }
+
+    private void DrawTitleText(Graphics g, string text, int x, int y)
+    {
+        using var shadowBrush = new SolidBrush(Color.FromArgb(44, 106, 255));
+        using var mainBrush = new SolidBrush(Color.FromArgb(238, 244, 255));
+
+        g.DrawString(text, uiFont, shadowBrush, x + 4, y + 4);
+        g.DrawString(text, uiFont, mainBrush, x, y);
+    }
+
+    private void DrawSelectionMarker(Graphics g, int x, int y)
+    {
+        if ((frameCounter / 18) % 2 == 1)
+        {
+            return;
+        }
+
+        using var shadowBrush = new SolidBrush(Color.FromArgb(0, 56, 180));
+        using var baseBrush = new SolidBrush(Color.FromArgb(0, 120, 255));
+        using var shineBrush = new SolidBrush(Color.FromArgb(180, 226, 255));
+
+        g.FillRectangle(shadowBrush, x + 2, y + 2, 12, 12);
+        g.FillRectangle(baseBrush, x, y, 12, 12);
+        g.FillRectangle(shineBrush, x + 3, y + 3, 4, 4);
     }
 
     private string GetText(string key)
@@ -861,3 +928,4 @@ public partial class Form1 : Form
         Collision
     }
 }
+
