@@ -5,3 +5,9 @@ obj/
 *.suo
 *.cache
 TestResults/
+
+# Assets
+/Assets/*
+!/Assets/README.md
+/アセット/
+/JF-Dot-ShinonomeMin14.ttf
