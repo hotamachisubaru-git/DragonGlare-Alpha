@@ -1,6 +1,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Timer = System.Windows.Forms.Timer;
@@ -12,8 +13,17 @@ public partial class Form1 : Form
     private const int VirtualWidth = 640;
     private const int VirtualHeight = 480;
     private const int TileSize = 32;
+    private const int InitialPlayerHp = 20;
+    private const int InitialPlayerMp = 2;
+    private const int InitialPlayerGold = 220;
+    private const int MaxPlayerGold = InitialPlayerGold;
+    private const int EnemyMaxHp = 18;
+    private const int CurrentSaveVersion = 1;
+    private const string SaveIntegrityPepper = "DragonGlareAlpha.SaveSeal.v1";
     private static readonly Point PlayerStartTile = new(3, 12);
+    private static readonly Point FieldEnemyTile = new(15, 5);
 
+    private readonly AssetLoader assetLoader = new();
     private readonly Timer gameTimer = new() { Interval = 16 };
     private readonly HashSet<Keys> heldKeys = [];
     private readonly HashSet<Keys> pressedKeys = [];
@@ -24,6 +34,9 @@ public partial class Form1 : Form
     private readonly System.Windows.Media.MediaPlayer sePlayer = new();
     private readonly Dictionary<BgmTrack, Uri> bgmUris = [];
     private readonly Dictionary<SoundEffect, Uri> seUris = [];
+    private readonly Image? fieldTileSprite;
+    private readonly Image heroSprite;
+    private readonly Image enemySprite;
 
     private Font uiFont = new("Consolas", 20, GraphicsUnit.Pixel);
     private Font smallFont = new("Consolas", 16, GraphicsUnit.Pixel);
@@ -38,14 +51,16 @@ public partial class Form1 : Form
     private bool isNpcDialogOpen;
     private Point playerTile = PlayerStartTile;
     private Point npcTile = new(12, 7);
-    private int playerHp = 20;
-    private int playerMp = 2;
-    private int playerGold = 220;
+    private int playerHp = InitialPlayerHp;
+    private int playerMp = InitialPlayerMp;
+    private int playerGold = InitialPlayerGold;
     private bool fontLoaded;
     private int frameCounter;
     private int startupFadeFrames = 20;
     private int battleCursorRow;
     private int battleCursorColumn;
+    private int enemyHp = EnemyMaxHp;
+    private BattlePhase battlePhase = BattlePhase.CommandSelection;
     private int shopPromptCursor;
     private int shopItemCursor;
     private ShopPhase shopPhase = ShopPhase.Welcome;
@@ -92,6 +107,9 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
+        fieldTileSprite = TryLoadFieldTile();
+        heroSprite = assetLoader.LoadCharacter("hero");
+        enemySprite = assetLoader.LoadEnemy("enemy_slime");
         ConfigureWindow();
         InitializeMap();
         LoadCustomFont();
@@ -186,6 +204,7 @@ public partial class Form1 : Form
         bgmPlayer.Close();
         sePlayer.Stop();
         sePlayer.Close();
+        assetLoader.Dispose();
         uiFont.Dispose();
         smallFont.Dispose();
         privateFontCollection.Dispose();
@@ -249,9 +268,25 @@ public partial class Form1 : Form
         UpdateBgm();
     }
 
+    private Image? TryLoadFieldTile()
+    {
+        try
+        {
+            return assetLoader.LoadTile("mapTile_Assets_SFCFrame1");
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
     private void RegisterBgm(BgmTrack track, params string[] fileNames)
     {
-        var path = ResolveAssetPath(fileNames);
+        var path = ResolveAssetPath("BGM", fileNames);
         if (path is not null)
         {
             bgmUris[track] = new Uri(path, UriKind.Absolute);
@@ -260,34 +295,29 @@ public partial class Form1 : Form
 
     private void RegisterSe(SoundEffect effect, params string[] fileNames)
     {
-        var path = ResolveAssetPath(fileNames);
+        var path = ResolveAssetPath("SE", fileNames);
         if (path is not null)
         {
             seUris[effect] = new Uri(path, UriKind.Absolute);
         }
     }
 
-    private static string? ResolveAssetPath(params string[] fileNames)
+    private static string? ResolveAssetPath(string assetFolder, params string[] fileNames)
     {
+        var assetRoot = Path.GetFullPath(
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", assetFolder));
+
         foreach (var name in fileNames)
         {
-            var candidates = new[]
+            var candidate = Path.GetFullPath(Path.Combine(assetRoot, name));
+            if (!candidate.StartsWith(assetRoot, StringComparison.OrdinalIgnoreCase))
             {
-                Path.Combine(AppContext.BaseDirectory, "アセット", name),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "アセット", name),
-                Path.Combine(Directory.GetCurrentDirectory(), "アセット", name),
-                Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", name),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Assets", "Audio", name),
-                Path.Combine(Directory.GetCurrentDirectory(), "Assets", "Audio", name)
-            };
+                continue;
+            }
 
-            foreach (var candidate in candidates)
+            if (File.Exists(candidate))
             {
-                var normalized = Path.GetFullPath(candidate);
-                if (File.Exists(normalized))
-                {
-                    return normalized;
-                }
+                return candidate;
             }
         }
 
@@ -327,6 +357,7 @@ public partial class Form1 : Form
     private void UpdateGame()
     {
         frameCounter++;
+        NormalizeRuntimeState();
 
         if (startupFadeFrames > 0)
         {
@@ -395,8 +426,12 @@ public partial class Form1 : Form
             return;
         }
 
-        menuNotice = "NO SAVE DATA / セーブデータがありません";
-        menuNoticeFrames = 180;
+        if (string.IsNullOrEmpty(menuNotice))
+        {
+            menuNotice = "NO SAVE DATA / セーブデータがありません";
+            menuNoticeFrames = 180;
+        }
+
         PlaySe(SoundEffect.Collision);
     }
 
@@ -528,27 +563,28 @@ public partial class Form1 : Form
 
     private void UpdateBattle()
     {
-        if (WasPressed(Keys.Up) || WasPressed(Keys.W))
+        if (battlePhase == BattlePhase.CommandSelection && WasPressed(Keys.Escape))
+        {
+            battleMessage = "うまく にげきった！";
+            battlePhase = BattlePhase.Escape;
+            return;
+        }
+
+        if (battlePhase == BattlePhase.CommandSelection && (WasPressed(Keys.Up) || WasPressed(Keys.W)))
         {
             battleCursorRow = Math.Max(0, battleCursorRow - 1);
         }
-        else if (WasPressed(Keys.Down) || WasPressed(Keys.S))
+        else if (battlePhase == BattlePhase.CommandSelection && (WasPressed(Keys.Down) || WasPressed(Keys.S)))
         {
             battleCursorRow = Math.Min(1, battleCursorRow + 1);
         }
-        else if (WasPressed(Keys.Left) || WasPressed(Keys.A))
+        else if (battlePhase == BattlePhase.CommandSelection && (WasPressed(Keys.Left) || WasPressed(Keys.A)))
         {
             battleCursorColumn = Math.Max(0, battleCursorColumn - 1);
         }
-        else if (WasPressed(Keys.Right) || WasPressed(Keys.D))
+        else if (battlePhase == BattlePhase.CommandSelection && (WasPressed(Keys.Right) || WasPressed(Keys.D)))
         {
             battleCursorColumn = Math.Min(1, battleCursorColumn + 1);
-        }
-
-        if (WasPressed(Keys.Escape))
-        {
-            gameState = GameState.Field;
-            return;
         }
 
         if (!WasPressed(Keys.Enter))
@@ -556,28 +592,27 @@ public partial class Form1 : Form
             return;
         }
 
-        var command = BattleCommands[battleCursorRow, battleCursorColumn];
-        switch (command)
+        if (battlePhase == BattlePhase.CommandSelection)
         {
-            case "こうげき":
-                battleMessage = "まものを やっつけた！";
-                break;
-            case "じゅもん":
-                if (playerMp <= 0)
-                {
-                    battleMessage = "MPが たりない！";
-                    break;
-                }
+            ExecuteBattleCommand(BattleCommands[battleCursorRow, battleCursorColumn]);
+            return;
+        }
 
-                playerMp--;
-                battleMessage = "メラ！ まものに 12ダメージ！";
+        switch (battlePhase)
+        {
+            case BattlePhase.PlayerActionResult:
+                ResolveEnemyTurn();
                 break;
-            case "どうぐ":
-                battleMessage = "どうぐは まだない。";
+            case BattlePhase.EnemyActionResult:
+                battlePhase = BattlePhase.CommandSelection;
+                battleMessage = "どうする？";
                 break;
-            case "にげる":
-                battleMessage = "うまく にげきった！";
-                gameState = GameState.Field;
+            case BattlePhase.Victory:
+            case BattlePhase.Escape:
+                ExitBattle(false);
+                break;
+            case BattlePhase.Defeat:
+                ExitBattle(true);
                 break;
         }
     }
@@ -656,11 +691,92 @@ public partial class Form1 : Form
 
     private void EnterBattle()
     {
-        battleCursorRow = 0;
-        battleCursorColumn = 0;
-        battleMessage = "まものが あらわれた！";
+        ResetBattleState();
         gameState = GameState.Battle;
         PlaySe(SoundEffect.Dialog);
+    }
+
+    private void ResetBattleState()
+    {
+        battleCursorRow = 0;
+        battleCursorColumn = 0;
+        enemyHp = EnemyMaxHp;
+        battlePhase = BattlePhase.CommandSelection;
+        battleMessage = "まものが あらわれた！";
+    }
+
+    private void ExecuteBattleCommand(string command)
+    {
+        switch (command)
+        {
+            case "こうげき":
+                ResolvePlayerAttack(6, "こうげき！");
+                break;
+            case "じゅもん":
+                if (playerMp <= 0)
+                {
+                    battleMessage = "MPが たりない！";
+                    return;
+                }
+
+                playerMp--;
+                ResolvePlayerAttack(12, "メラ！");
+                break;
+            case "どうぐ":
+                battleMessage = "どうぐは まだない。";
+                break;
+            case "にげる":
+                battleMessage = "うまく にげきった！";
+                battlePhase = BattlePhase.Escape;
+                break;
+        }
+    }
+
+    private void ResolvePlayerAttack(int damage, string actionLabel)
+    {
+        enemyHp = Math.Max(0, enemyHp - damage);
+        if (enemyHp == 0)
+        {
+            battleMessage = $"{actionLabel} まものを やっつけた！";
+            battlePhase = BattlePhase.Victory;
+            return;
+        }
+
+        battleMessage = $"{actionLabel} まものに {damage}ダメージ！";
+        battlePhase = BattlePhase.PlayerActionResult;
+    }
+
+    private void ResolveEnemyTurn()
+    {
+        const int damage = 4;
+        playerHp = Math.Max(0, playerHp - damage);
+        if (playerHp == 0)
+        {
+            battleMessage = $"まものの こうげき！ {damage}ダメージを うけた！\n{GetBattlePlayerName()}は ちからつきた…。";
+            battlePhase = BattlePhase.Defeat;
+            return;
+        }
+
+        battleMessage = $"まものの こうげき！ {damage}ダメージを うけた！";
+        battlePhase = BattlePhase.EnemyActionResult;
+    }
+
+    private void ExitBattle(bool defeated)
+    {
+        if (defeated)
+        {
+            playerTile = PlayerStartTile;
+            playerHp = InitialPlayerHp;
+            playerMp = InitialPlayerMp;
+        }
+
+        ResetBattleState();
+        gameState = GameState.Field;
+    }
+
+    private string GetBattlePlayerName()
+    {
+        return playerName.Length == 0 ? "のりたま" : playerName.ToString();
     }
 
     private void EnterShopBuy()
@@ -784,9 +900,9 @@ public partial class Form1 : Form
     {
         DrawFieldScene(g);
 
-        DrawWindow(g, new Rectangle(8, 8, 430, 84));
-        DrawText(g, GetText("fieldHelp"), 20, 26, smallFont);
-        DrawText(g, IsInsideCastleZone(playerTile) ? GetText("areaCastle") : GetText("areaField"), 20, 56, smallFont);
+        DrawWindow(g, new Rectangle(8, 8, 474, 84));
+        DrawText(g, GetText("fieldHelpLine1"), 20, 24, smallFont);
+        DrawText(g, GetText("fieldHelpLine2"), 20, 54, smallFont);
 
         if (isNpcDialogOpen)
         {
@@ -800,7 +916,7 @@ public partial class Form1 : Form
     {
         DrawMenuBackdrop(g);
 
-        var statusName = playerName.Length == 0 ? "のりたま" : playerName.ToString();
+        var statusName = GetBattlePlayerName();
         DrawWindow(g, new Rectangle(76, 34, 246, 132));
         DrawText(g, statusName, 102, 52);
         DrawText(g, $"HP: {playerHp}", 102, 88);
@@ -816,7 +932,7 @@ public partial class Form1 : Form
             {
                 var x = 366 + (column * 108);
                 var y = 92 + (row * 36);
-                if (battleCursorRow == row && battleCursorColumn == column)
+                if (battlePhase == BattlePhase.CommandSelection && battleCursorRow == row && battleCursorColumn == column)
                 {
                     DrawSelectionMarker(g, x - 24, y + 10);
                 }
@@ -835,15 +951,23 @@ public partial class Form1 : Form
     {
         DrawFieldScene(g);
 
+        var itemWindow = new Rectangle(332, 34, 240, 236);
+        var messageWindow = new Rectangle(92, 292, 426, 152);
+        var itemStartY = 82;
+        var itemRowSpacing = 28;
+
         DrawWindow(g, new Rectangle(44, 74, 240, 120));
         DrawOption(g, shopPhase == ShopPhase.Welcome && shopPromptCursor == 0, 114, 104, "はい");
         DrawOption(g, shopPhase == ShopPhase.Welcome && shopPromptCursor == 1, 114, 142, "いいえ");
 
-        DrawWindow(g, new Rectangle(332, 34, 240, 292));
-        DrawText(g, "しょうひん", 404, 48);
+        DrawWindow(g, itemWindow);
+        var shopTitle = "しょうひん";
+        var titleSize = g.MeasureString(shopTitle, uiFont);
+        var titleX = itemWindow.X + (int)Math.Round((itemWindow.Width - titleSize.Width) / 2f);
+        DrawText(g, shopTitle, titleX, 48);
         for (var i = 0; i < ShopCatalog.Length; i++)
         {
-            var rowY = 80 + (i * 34);
+            var rowY = itemStartY + (i * itemRowSpacing);
             if (shopPhase == ShopPhase.BuyList && shopItemCursor == i)
             {
                 DrawSelectionMarker(g, 348, rowY + 10);
@@ -853,21 +977,25 @@ public partial class Form1 : Form
             DrawText(g, ShopCatalog[i].Price.ToString(), 500, rowY);
         }
 
-        var quitY = 80 + (ShopCatalog.Length * 34) + 10;
+        var quitY = itemStartY + (ShopCatalog.Length * itemRowSpacing) + 4;
         if (shopPhase == ShopPhase.BuyList && shopItemCursor == ShopCatalog.Length)
         {
             DrawSelectionMarker(g, 348, quitY + 10);
         }
 
         DrawText(g, "やめる", 372, quitY);
-        DrawText(g, $"G {playerGold}", 372, 294, smallFont);
+        DrawText(g, $"G {playerGold}", 488, quitY, smallFont);
 
-        DrawWindow(g, new Rectangle(92, 250, 426, 194));
-        DrawText(g, shopMessage, 120, 284);
+        DrawWindow(g, messageWindow);
+        DrawText(g, shopMessage, 120, 324);
     }
 
     private void DrawFieldScene(Graphics g)
     {
+        using var floorBrush = new SolidBrush(Color.FromArgb(5, 5, 5));
+        using var wallBrush = new SolidBrush(Color.FromArgb(140, 8, 30, 90));
+        using var castleBrush = new SolidBrush(Color.FromArgb(120, 80, 20, 20));
+
         for (var y = 0; y < map.GetLength(0); y++)
         {
             for (var x = 0; x < map.GetLength(1); x++)
@@ -875,24 +1003,26 @@ public partial class Form1 : Form
                 var tileRect = new Rectangle(x * TileSize, y * TileSize, TileSize, TileSize);
                 if (map[y, x] == 1)
                 {
-                    using var wallBrush = new SolidBrush(Color.FromArgb(8, 30, 90));
                     g.FillRectangle(wallBrush, tileRect);
                 }
                 else if (map[y, x] == 2)
                 {
-                    using var castleBrush = new SolidBrush(Color.FromArgb(80, 20, 20));
                     g.FillRectangle(castleBrush, tileRect);
+                }
+                else if (fieldTileSprite is not null)
+                {
+                    g.DrawImage(fieldTileSprite, tileRect);
                 }
                 else
                 {
-                    using var floorBrush = new SolidBrush(Color.FromArgb(5, 5, 5));
                     g.FillRectangle(floorBrush, tileRect);
                 }
             }
         }
 
         DrawTileEntity(g, npcTile, Color.Cyan);
-        DrawTileEntity(g, playerTile, Color.White);
+        DrawSpriteAtTile(g, enemySprite, FieldEnemyTile);
+        DrawSpriteAtTile(g, heroSprite, playerTile);
     }
 
     private void DrawBattleEnemy(Graphics g, Point center)
@@ -919,6 +1049,19 @@ public partial class Form1 : Form
         var rect = new Rectangle(tile.X * TileSize + 4, tile.Y * TileSize + 4, TileSize - 8, TileSize - 8);
         using var brush = new SolidBrush(color);
         g.FillRectangle(brush, rect);
+    }
+
+    private static Point GetSpriteDrawPosition(Point tile)
+    {
+        var drawX = tile.X * TileSize + 8;
+        var drawY = tile.Y * TileSize + 8;
+        return new Point(drawX, drawY);
+    }
+
+    private static void DrawSpriteAtTile(Graphics g, Image sprite, Point tile)
+    {
+        var drawPosition = GetSpriteDrawPosition(tile);
+        g.DrawImage(sprite, drawPosition.X, drawPosition.Y, sprite.Width, sprite.Height);
     }
 
     private void DrawWindow(Graphics g, Rectangle rect)
@@ -1004,18 +1147,49 @@ public partial class Form1 : Form
         var name = playerName.Length == 0 ? "PLAYER" : playerName.ToString();
         return (selectedLanguage, key) switch
         {
-            (UiLanguage.Japanese, "fieldHelp") => "やじるし:いどう  ENTER:はなす  B:バトル  V:ショップ",
-            (UiLanguage.English, "fieldHelp") => "ARROWS: MOVE  ENTER: TALK  B:BATTLE  V:SHOP",
-            (UiLanguage.Japanese, "areaField") => "フィールドBGM: SFC_field",
-            (UiLanguage.English, "areaField") => "FIELD BGM: SFC_field",
-            (UiLanguage.Japanese, "areaCastle") => "おしろBGM: SFC_castle",
-            (UiLanguage.English, "areaCastle") => "CASTLE BGM: SFC_castle",
+            (UiLanguage.Japanese, "fieldHelpLine1") => "やじるし:いどう  ENTER:はなす",
+            (UiLanguage.English, "fieldHelpLine1") => "ARROWS: MOVE  ENTER: TALK",
+            (UiLanguage.Japanese, "fieldHelpLine2") => "B:バトル  V:ショップ",
+            (UiLanguage.English, "fieldHelpLine2") => "B:BATTLE  V:SHOP",
             (UiLanguage.Japanese, "npcLine1") => $"{name}、ようこそ。",
             (UiLanguage.Japanese, "npcLine2") => "アセットがとどくのをまっています。",
             (UiLanguage.English, "npcLine1") => $"Welcome, {name}.",
             (UiLanguage.English, "npcLine2") => "We are waiting for your assets.",
             _ => string.Empty
         };
+    }
+
+    private void NormalizeRuntimeState()
+    {
+        playerHp = Math.Clamp(playerHp, 0, InitialPlayerHp);
+        playerMp = Math.Clamp(playerMp, 0, InitialPlayerMp);
+        playerGold = Math.Clamp(playerGold, 0, MaxPlayerGold);
+        enemyHp = Math.Clamp(enemyHp, 0, EnemyMaxHp);
+        movementCooldown = Math.Max(0, movementCooldown);
+        battleCursorRow = Math.Clamp(battleCursorRow, 0, 1);
+        battleCursorColumn = Math.Clamp(battleCursorColumn, 0, 1);
+        shopPromptCursor = Math.Clamp(shopPromptCursor, 0, 1);
+        shopItemCursor = Math.Clamp(shopItemCursor, 0, ShopCatalog.Length);
+
+        if (!IsWalkableTile(playerTile) || playerTile == npcTile)
+        {
+            playerTile = PlayerStartTile;
+        }
+
+        if (!Enum.IsDefined(typeof(BattlePhase), battlePhase))
+        {
+            battlePhase = BattlePhase.CommandSelection;
+        }
+
+        if (!Enum.IsDefined(typeof(ShopPhase), shopPhase))
+        {
+            shopPhase = ShopPhase.Welcome;
+        }
+
+        if (!Enum.IsDefined(typeof(UiLanguage), selectedLanguage))
+        {
+            selectedLanguage = UiLanguage.Japanese;
+        }
     }
 
     private void StartNewGame()
@@ -1026,16 +1200,20 @@ public partial class Form1 : Form
         nameCursorColumn = 0;
         playerTile = PlayerStartTile;
         playerName.Clear();
-        playerHp = 20;
-        playerMp = 2;
-        playerGold = 220;
+        playerHp = InitialPlayerHp;
+        playerMp = InitialPlayerMp;
+        playerGold = InitialPlayerGold;
         isNpcDialogOpen = false;
         movementCooldown = 0;
+        ResetBattleState();
         gameState = GameState.LanguageSelection;
     }
 
     private bool TryLoadGame()
     {
+        menuNotice = string.Empty;
+        menuNoticeFrames = 0;
+
         try
         {
             if (!File.Exists(SaveFilePath))
@@ -1047,6 +1225,20 @@ public partial class Form1 : Form
             var save = JsonSerializer.Deserialize<SaveData>(json);
             if (save is null)
             {
+                ShowInvalidSaveNotice();
+                return false;
+            }
+
+            var isLegacySave = save.Version == 0 && string.IsNullOrWhiteSpace(save.Integrity);
+            if (!isLegacySave && !HasValidSaveIntegrity(save))
+            {
+                ShowInvalidSaveNotice();
+                return false;
+            }
+
+            if (!IsSafeSavePayload(save))
+            {
+                ShowInvalidSaveNotice();
                 return false;
             }
 
@@ -1063,33 +1255,43 @@ public partial class Form1 : Form
 
             var loadedTile = new Point(save.PlayerX, save.PlayerY);
             playerTile = IsWalkableTile(loadedTile) && loadedTile != npcTile ? loadedTile : PlayerStartTile;
-            playerHp = 20;
-            playerMp = 2;
-            playerGold = 220;
+            playerHp = InitialPlayerHp;
+            playerMp = InitialPlayerMp;
+            playerGold = InitialPlayerGold;
             isNpcDialogOpen = false;
             movementCooldown = 0;
+            ResetBattleState();
+
+            if (isLegacySave)
+            {
+                SaveGame(true);
+            }
+
             return true;
         }
         catch
         {
+            ShowInvalidSaveNotice();
             return false;
         }
     }
 
-    private void SaveGame()
+    private void SaveGame(bool force = false)
     {
-        if (gameState != GameState.Field)
+        if (!force && gameState != GameState.Field)
         {
             return;
         }
 
         var save = new SaveData
         {
+            Version = CurrentSaveVersion,
             Language = selectedLanguage == UiLanguage.English ? "en" : "ja",
             Name = playerName.ToString(),
             PlayerX = playerTile.X,
             PlayerY = playerTile.Y
         };
+        save.Integrity = ComputeSaveIntegrity(save);
 
         try
         {
@@ -1099,6 +1301,45 @@ public partial class Form1 : Form
         catch
         {
         }
+    }
+
+    private static string ComputeSaveIntegrity(SaveData save)
+    {
+        var normalizedLanguage = string.Equals(save.Language, "en", StringComparison.OrdinalIgnoreCase) ? "en" : "ja";
+        var normalizedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(save.Name ?? string.Empty));
+        var payload = $"{save.Version}|{normalizedLanguage}|{normalizedName}|{save.PlayerX}|{save.PlayerY}|{SaveIntegrityPepper}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        return Convert.ToHexString(hash);
+    }
+
+    private static bool HasValidSaveIntegrity(SaveData save)
+    {
+        return save.Version == CurrentSaveVersion
+            && !string.IsNullOrWhiteSpace(save.Integrity)
+            && string.Equals(save.Integrity, ComputeSaveIntegrity(save), StringComparison.Ordinal);
+    }
+
+    private bool IsSafeSavePayload(SaveData save)
+    {
+        if (!string.Equals(save.Language, "ja", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(save.Language, "en", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if ((save.Name?.Length ?? 0) > 10)
+        {
+            return false;
+        }
+
+        var loadedTile = new Point(save.PlayerX, save.PlayerY);
+        return IsWalkableTile(loadedTile) && loadedTile != npcTile;
+    }
+
+    private void ShowInvalidSaveNotice()
+    {
+        menuNotice = "SAVE DATA INVALID / セーブデータを検証できません";
+        menuNoticeFrames = 240;
     }
 
     private void MoveNameCursor(int deltaX, int deltaY)
@@ -1194,10 +1435,12 @@ public partial class Form1 : Form
 
     private sealed class SaveData
     {
+        public int Version { get; set; }
         public string Language { get; set; } = "ja";
         public string Name { get; set; } = string.Empty;
         public int PlayerX { get; set; }
         public int PlayerY { get; set; }
+        public string Integrity { get; set; } = string.Empty;
     }
 
     private enum GameState
@@ -1214,6 +1457,16 @@ public partial class Form1 : Form
     {
         Welcome,
         BuyList
+    }
+
+    private enum BattlePhase
+    {
+        CommandSelection,
+        PlayerActionResult,
+        EnemyActionResult,
+        Victory,
+        Escape,
+        Defeat
     }
 
     private enum UiLanguage
