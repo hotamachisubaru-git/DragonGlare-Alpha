@@ -32,7 +32,7 @@ public partial class Form1
             if (playerName.Length > 0)
             {
                 player.Name = TrimPlayerName(playerName.ToString());
-                gameState = GameState.Field;
+                ChangeGameState(GameState.Field);
                 PersistProgress();
             }
 

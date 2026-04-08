@@ -139,14 +139,7 @@ public partial class Form1
 
     private void UpdateBgm()
     {
-        var desiredTrack = gameState switch
-        {
-            GameState.Battle => BgmTrack.Battle,
-            GameState.ShopBuy => BgmTrack.Shop,
-            GameState.Field when IsCastleMap() => BgmTrack.Castle,
-            GameState.Field => BgmTrack.Field,
-            _ => BgmTrack.MainMenu
-        };
+        var desiredTrack = GetDesiredBgmTrack();
 
         if (currentBgmTrack == desiredTrack)
         {
@@ -164,6 +157,27 @@ public partial class Form1
         bgmPlayer.Open(trackUri);
         bgmPlayer.Position = TimeSpan.Zero;
         bgmPlayer.Play();
+    }
+
+    private BgmTrack GetDesiredBgmTrack()
+    {
+        return gameState switch
+        {
+            GameState.Battle => BgmTrack.Battle,
+            GameState.ShopBuy => BgmTrack.Shop,
+            GameState.Field => GetFieldBgmTrack(currentFieldMap),
+            _ => BgmTrack.MainMenu
+        };
+    }
+
+    private static BgmTrack GetFieldBgmTrack(FieldMapId mapId)
+    {
+        return mapId switch
+        {
+            FieldMapId.Castle => BgmTrack.Castle,
+            FieldMapId.Field => BgmTrack.Field,
+            _ => BgmTrack.Field
+        };
     }
 
     private void PlaySe(SoundEffect effect)

@@ -46,7 +46,7 @@ public partial class Form1
         shopItemCursor = 0;
         battleMessage = "まものが あらわれた！";
         shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
-        gameState = GameState.LanguageSelection;
+        ChangeGameState(GameState.LanguageSelection);
     }
 
     private bool TryLoadGame()

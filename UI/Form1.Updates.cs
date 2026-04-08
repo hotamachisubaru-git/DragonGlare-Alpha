@@ -72,7 +72,7 @@ public partial class Form1
 
         if (TryLoadGame())
         {
-            gameState = GameState.Field;
+            ChangeGameState(GameState.Field);
             return;
         }
 
@@ -96,7 +96,7 @@ public partial class Form1
         {
             selectedLanguage = languageCursor == 0 ? UiLanguage.Japanese : UiLanguage.English;
             player.Language = selectedLanguage;
-            gameState = GameState.NameInput;
+            ChangeGameState(GameState.NameInput);
             playerName.Clear();
             nameCursorRow = 0;
             nameCursorColumn = 0;
@@ -104,7 +104,7 @@ public partial class Form1
 
         if (WasPressed(Keys.Escape))
         {
-            gameState = GameState.ModeSelect;
+            ChangeGameState(GameState.ModeSelect);
         }
     }
 
@@ -134,7 +134,7 @@ public partial class Form1
 
         if (WasPressed(Keys.Escape))
         {
-            gameState = GameState.LanguageSelection;
+            ChangeGameState(GameState.LanguageSelection);
             return;
         }
 
@@ -220,7 +220,7 @@ public partial class Form1
         if (currentEncounter is null)
         {
             battleFlowState = BattleFlowState.CommandSelection;
-            gameState = GameState.Field;
+            ChangeGameState(GameState.Field);
             return;
         }
 
@@ -307,7 +307,7 @@ public partial class Form1
 
             if (WasPressed(Keys.Escape))
             {
-                gameState = GameState.Field;
+                ChangeGameState(GameState.Field);
                 return;
             }
 
@@ -324,7 +324,7 @@ public partial class Form1
                 return;
             }
 
-            gameState = GameState.Field;
+            ChangeGameState(GameState.Field);
             return;
         }
 
@@ -373,7 +373,7 @@ public partial class Form1
         battleFlowState = BattleFlowState.CommandSelection;
         currentEncounter = battleService.CreateEncounter(random);
         battleMessage = $"{currentEncounter.Enemy.Name}が あらわれた！";
-        gameState = GameState.Battle;
+        ChangeGameState(GameState.Battle);
         PlaySe(SoundEffect.Dialog);
     }
 
@@ -383,7 +383,7 @@ public partial class Form1
         shopPromptCursor = 0;
         shopItemCursor = 0;
         shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
-        gameState = GameState.ShopBuy;
+        ChangeGameState(GameState.ShopBuy);
         PlaySe(SoundEffect.Dialog);
     }
 
@@ -393,7 +393,7 @@ public partial class Form1
         battleFlowState = BattleFlowState.CommandSelection;
         battleCursorRow = 0;
         battleCursorColumn = 0;
-        gameState = GameState.Field;
+        ChangeGameState(GameState.Field);
         PersistProgress();
     }
 }

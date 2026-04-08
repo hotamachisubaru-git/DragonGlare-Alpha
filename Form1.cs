@@ -148,14 +148,27 @@ public partial class Form1 : Form
 
     private void ConfigureWindow()
     {
-        Text = "DragonGlare Alpha";
+        Text = $"DragonGlare Alpha v{Application.ProductVersion}";
         ClientSize = new Size(960, 720);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.Black;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
+        ShowIcon = true;
         KeyPreview = true;
         DoubleBuffered = true;
+
+        try
+        {
+            using var applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            if (applicationIcon is not null)
+            {
+                Icon = (Icon)applicationIcon.Clone();
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void CleanupResources()

@@ -7,11 +7,6 @@ namespace DragonGlareAlpha;
 
 public partial class Form1
 {
-    private bool IsCastleMap()
-    {
-        return currentFieldMap == FieldMapId.Castle;
-    }
-
     private bool HasNpcOnCurrentMap()
     {
         return currentFieldMap == FieldMapId.Hub;
@@ -26,6 +21,13 @@ public partial class Form1
     {
         currentFieldMap = mapId;
         map = MapFactory.CreateMap(mapId);
+        UpdateBgm();
+    }
+
+    private void ChangeGameState(GameState nextState)
+    {
+        gameState = nextState;
+        UpdateBgm();
     }
 
     private void SwitchFieldMap(FieldMapId mapId, Point destinationTile, bool persistProgress = true)
