@@ -5,13 +5,15 @@ namespace DragonGlareAlpha.Persistence;
 
 public sealed class SaveData
 {
-    public int Version { get; set; } = 4;
+    public int Version { get; set; } = 6;
 
     public DateTime SavedAtUtc { get; set; } = DateTime.UtcNow;
 
     public string Language { get; set; } = "ja";
 
     public string Name { get; set; } = string.Empty;
+
+    public int SlotNumber { get; set; }
 
     public FieldMapId CurrentFieldMap { get; set; } = FieldMapId.Hub;
 
@@ -40,4 +42,6 @@ public sealed class SaveData
     public string? EquippedWeaponId { get; set; }
 
     public List<InventoryEntry> Inventory { get; set; } = [];
+
+    public string Signature { get; set; } = string.Empty;
 }

@@ -5,9 +5,17 @@ public enum GameState
     ModeSelect,
     LanguageSelection,
     NameInput,
+    SaveSlotSelection,
     Field,
+    EncounterTransition,
     Battle,
     ShopBuy
+}
+
+public enum SaveSlotSelectionMode
+{
+    Save,
+    Load
 }
 
 public enum ShopPhase

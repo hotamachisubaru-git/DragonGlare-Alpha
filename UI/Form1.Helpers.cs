@@ -1,6 +1,7 @@
 using DragonGlareAlpha.Data;
 using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Player;
+using DragonGlareAlpha.Persistence;
 using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
@@ -21,6 +22,7 @@ public partial class Form1
     {
         currentFieldMap = mapId;
         map = MapFactory.CreateMap(mapId);
+        ResetEncounterCounter();
         UpdateBgm();
     }
 
@@ -28,6 +30,32 @@ public partial class Form1
     {
         gameState = nextState;
         UpdateBgm();
+    }
+
+    private void OpenSaveSlotSelection(SaveSlotSelectionMode mode)
+    {
+        saveSlotSelectionMode = mode;
+        RefreshSaveSlotSummaries();
+        saveSlotCursor = Math.Clamp(activeSaveSlot - 1, 0, SaveService.SlotCount - 1);
+        if (mode == SaveSlotSelectionMode.Save && activeSaveSlot == 0)
+        {
+            saveSlotCursor = 0;
+        }
+
+        menuNotice = string.Empty;
+        menuNoticeFrames = 0;
+        ChangeGameState(GameState.SaveSlotSelection);
+    }
+
+    private void RefreshSaveSlotSummaries()
+    {
+        saveSlotSummaries = saveService.GetSlotSummaries();
+    }
+
+    private void ShowTransientNotice(string message, int frames = 180)
+    {
+        menuNotice = message;
+        menuNoticeFrames = frames;
     }
 
     private void SwitchFieldMap(FieldMapId mapId, Point destinationTile, bool persistProgress = true)
@@ -41,6 +69,11 @@ public partial class Form1
         {
             PersistProgress();
         }
+    }
+
+    private void ResetEncounterCounter()
+    {
+        fieldEncounterStepsRemaining = random.Next(6, 12);
     }
 
     private bool TryTransitionFromTile(Point tile)
@@ -119,5 +152,15 @@ public partial class Form1
     private static string FormatBattleResolutionMessage(IEnumerable<DragonGlareAlpha.Domain.Battle.BattleSequenceStep> steps)
     {
         return string.Join('\n', steps.Select(step => step.Message).Where(message => !string.IsNullOrWhiteSpace(message)));
+    }
+
+    private static string GetMapDisplayName(FieldMapId mapId)
+    {
+        return mapId switch
+        {
+            FieldMapId.Castle => "CASTLE",
+            FieldMapId.Field => "FIELD",
+            _ => "HUB"
+        };
     }
 }

@@ -1,5 +1,9 @@
 using DragonGlareAlpha.Data;
 using DragonGlareAlpha.Domain;
+using DragonGlareAlpha.Domain.Battle;
+using DragonGlareAlpha.Persistence;
+using DragonGlareAlpha.Security;
+using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
 
@@ -8,6 +12,7 @@ public partial class Form1
     private void UpdateGame()
     {
         frameCounter++;
+        RunAntiCheatChecks();
 
         if (startupFadeFrames > 0)
         {
@@ -34,8 +39,14 @@ public partial class Form1
             case GameState.NameInput:
                 UpdateNameInput();
                 break;
+            case GameState.SaveSlotSelection:
+                UpdateSaveSlotSelection();
+                break;
             case GameState.Field:
                 UpdateField();
+                break;
+            case GameState.EncounterTransition:
+                UpdateEncounterTransition();
                 break;
             case GameState.Battle:
                 UpdateBattle();
@@ -46,6 +57,30 @@ public partial class Form1
         }
 
         UpdateBgm();
+    }
+
+    private void RunAntiCheatChecks()
+    {
+        if (frameCounter % 30 == 0)
+        {
+            player.RekeySensitiveValues();
+            currentEncounter?.RekeySensitiveValues();
+            pendingEncounter?.RekeySensitiveValues();
+        }
+
+        if (frameCounter % 120 != 0)
+        {
+            return;
+        }
+
+        player.ValidateIntegrity();
+        currentEncounter?.ValidateIntegrity();
+        pendingEncounter?.ValidateIntegrity();
+
+        if (antiCheatService.TryDetectViolation(out var message))
+        {
+            throw new TamperDetectedException(message);
+        }
     }
 
     private void UpdateModeSelect()
@@ -70,15 +105,7 @@ public partial class Form1
             return;
         }
 
-        if (TryLoadGame())
-        {
-            ChangeGameState(GameState.Field);
-            return;
-        }
-
-        menuNotice = "NO SAVE DATA / セーブデータがありません";
-        menuNoticeFrames = 180;
-        PlaySe(SoundEffect.Collision);
+        OpenSaveSlotSelection(SaveSlotSelectionMode.Load);
     }
 
     private void UpdateLanguageSelection()
@@ -144,6 +171,56 @@ public partial class Form1
         }
     }
 
+    private void UpdateSaveSlotSelection()
+    {
+        if (WasPressed(Keys.Up) || WasPressed(Keys.W))
+        {
+            saveSlotCursor = Math.Max(0, saveSlotCursor - 1);
+        }
+        else if (WasPressed(Keys.Down) || WasPressed(Keys.S))
+        {
+            saveSlotCursor = Math.Min(SaveService.SlotCount - 1, saveSlotCursor + 1);
+        }
+
+        if (WasPressed(Keys.Escape))
+        {
+            ChangeGameState(saveSlotSelectionMode == SaveSlotSelectionMode.Save
+                ? GameState.NameInput
+                : GameState.ModeSelect);
+            return;
+        }
+
+        if (!WasPressed(Keys.Enter))
+        {
+            return;
+        }
+
+        var selectedSlot = saveSlotCursor + 1;
+        if (saveSlotSelectionMode == SaveSlotSelectionMode.Load)
+        {
+            if (TryLoadGame(selectedSlot))
+            {
+                ChangeGameState(GameState.Field);
+                return;
+            }
+
+            var failureReason = saveService.LastFailureReason;
+            RefreshSaveSlotSummaries();
+            ShowTransientNotice(failureReason switch
+            {
+                SaveLoadFailureReason.InvalidSignature => "SAVE DATA INVALID / セーブデータが改ざんされています",
+                SaveLoadFailureReason.InvalidFormat => "SAVE DATA ERROR / セーブデータが壊れています",
+                _ => "NO SAVE DATA / セーブデータがありません"
+            });
+            PlaySe(SoundEffect.Collision);
+            return;
+        }
+
+        activeSaveSlot = selectedSlot;
+        SaveGame();
+        ChangeGameState(GameState.Field);
+    }
+
     private void UpdateField()
     {
         if (isNpcDialogOpen)
@@ -206,6 +283,10 @@ public partial class Form1
             }
 
             movementCooldown = 6;
+            if (gameState != GameState.Field)
+            {
+                return;
+            }
         }
 
         if (HasNpcOnCurrentMap() && WasPressed(Keys.Enter) && IsAdjacent(player.TilePosition, NpcTile))
@@ -296,6 +377,33 @@ public partial class Form1
         }
     }
 
+    private void UpdateEncounterTransition()
+    {
+        if (encounterTransitionFrames > 0)
+        {
+            encounterTransitionFrames--;
+        }
+
+        if (encounterTransitionFrames > 0)
+        {
+            return;
+        }
+
+        if (pendingEncounter is null)
+        {
+            ChangeGameState(GameState.Field);
+            return;
+        }
+
+        currentEncounter = pendingEncounter;
+        pendingEncounter = null;
+        battleCursorRow = 0;
+        battleCursorColumn = 0;
+        battleFlowState = BattleFlowState.CommandSelection;
+        battleMessage = $"{currentEncounter.Enemy.Name}が あらわれた！";
+        ChangeGameState(GameState.Battle);
+    }
+
     private void UpdateShopBuy()
     {
         if (shopPhase == ShopPhase.Welcome)
@@ -368,13 +476,7 @@ public partial class Form1
 
     private void EnterBattle()
     {
-        battleCursorRow = 0;
-        battleCursorColumn = 0;
-        battleFlowState = BattleFlowState.CommandSelection;
-        currentEncounter = battleService.CreateEncounter(random);
-        battleMessage = $"{currentEncounter.Enemy.Name}が あらわれた！";
-        ChangeGameState(GameState.Battle);
-        PlaySe(SoundEffect.Dialog);
+        StartEncounterTransition(battleService.CreateEncounter(random));
     }
 
     private void EnterShopBuy()
@@ -390,10 +492,48 @@ public partial class Form1
     private void FinishBattle()
     {
         currentEncounter = null;
+        pendingEncounter = null;
+        encounterTransitionFrames = 0;
+        ResetEncounterCounter();
         battleFlowState = BattleFlowState.CommandSelection;
         battleCursorRow = 0;
         battleCursorColumn = 0;
         ChangeGameState(GameState.Field);
         PersistProgress();
+    }
+
+    private bool TryTriggerRandomEncounter()
+    {
+        if (currentFieldMap != FieldMapId.Field)
+        {
+            return false;
+        }
+
+        var tileId = map[player.TilePosition.Y, player.TilePosition.X];
+        if (tileId == MapFactory.FieldGateTile)
+        {
+            return false;
+        }
+
+        fieldEncounterStepsRemaining -= tileId == MapFactory.GrassTile ? 2 : 1;
+        if (fieldEncounterStepsRemaining > 0)
+        {
+            return false;
+        }
+
+        StartEncounterTransition(battleService.CreateEncounter(random));
+        return true;
+    }
+
+    private void StartEncounterTransition(BattleEncounter encounter)
+    {
+        pendingEncounter = encounter;
+        encounterTransitionFrames = EncounterTransitionDuration;
+        battleCursorRow = 0;
+        battleCursorColumn = 0;
+        battleFlowState = BattleFlowState.CommandSelection;
+        ResetEncounterCounter();
+        ChangeGameState(GameState.EncounterTransition);
+        PlaySe(SoundEffect.Dialog);
     }
 }

@@ -6,6 +6,7 @@ using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Battle;
 using DragonGlareAlpha.Domain.Player;
 using DragonGlareAlpha.Persistence;
+using DragonGlareAlpha.Security;
 using DragonGlareAlpha.Services;
 using Timer = System.Windows.Forms.Timer;
 
@@ -16,12 +17,14 @@ public partial class Form1 : Form
     private const int VirtualWidth = 640;
     private const int VirtualHeight = 480;
     private const int TileSize = 32;
+    private const int EncounterTransitionDuration = 26;
     private static readonly Point PlayerStartTile = new(3, 12);
     private static readonly Point NpcTile = new(12, 7);
     private static readonly Point HubFromCastleTile = new(9, 2);
     private static readonly Point CastleEntryTile = new(9, 12);
     private static readonly Point HubFromFieldTile = new(15, 7);
     private static readonly Point FieldEntryTile = new(2, 7);
+    private static readonly TimeSpan BgmLoopLeadTime = TimeSpan.FromMilliseconds(120);
 
     private readonly Timer gameTimer = new() { Interval = 16 };
     private readonly HashSet<Keys> heldKeys = [];
@@ -34,6 +37,7 @@ public partial class Form1 : Form
     private readonly Dictionary<SoundEffect, Uri> seUris = [];
     private readonly Random random = new();
     private readonly SaveService saveService = new();
+    private readonly AntiCheatService antiCheatService = new();
     private readonly BattleService battleService = new();
     private readonly ProgressionService progressionService = new();
     private readonly ShopService shopService = new();
@@ -51,6 +55,8 @@ public partial class Form1 : Form
     private int languageCursor;
     private int nameCursorRow;
     private int nameCursorColumn;
+    private int saveSlotCursor;
+    private int activeSaveSlot;
     private int movementCooldown;
     private bool isNpcDialogOpen;
     private bool isFieldStatusVisible;
@@ -63,13 +69,19 @@ public partial class Form1 : Form
     private int shopPromptCursor;
     private int shopItemCursor;
     private ShopPhase shopPhase = ShopPhase.Welcome;
+    private SaveSlotSelectionMode saveSlotSelectionMode = SaveSlotSelectionMode.Save;
     private string battleMessage = "まものが あらわれた！";
     private string shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
     private BgmTrack? currentBgmTrack;
     private string menuNotice = string.Empty;
     private int menuNoticeFrames;
+    private bool skipSaveOnClose;
+    private int encounterTransitionFrames;
+    private int fieldEncounterStepsRemaining = 7;
+    private BattleEncounter? pendingEncounter;
+    private IReadOnlyList<SaveSlotSummary> saveSlotSummaries = [];
 
-    private string SaveFilePath => Path.Combine(AppContext.BaseDirectory, "savegame.json");
+    private string LegacySaveFilePath => Path.Combine(AppContext.BaseDirectory, "savegame.json");
 
     public Form1()
     {
@@ -77,6 +89,8 @@ public partial class Form1 : Form
         ConfigureWindow();
         LoadCustomFont();
         InitializeAudio();
+        saveService.TryMigrateLegacySave(LegacySaveFilePath);
+        RefreshSaveSlotSummaries();
 
         KeyDown += OnKeyDown;
         KeyUp += OnKeyUp;
@@ -84,65 +98,88 @@ public partial class Form1 : Form
 
         gameTimer.Tick += (_, _) =>
         {
-            UpdateGame();
-            Invalidate();
-            pressedKeys.Clear();
+            try
+            {
+                UpdateGame();
+                Invalidate();
+            }
+            catch (TamperDetectedException ex)
+            {
+                HandleSecurityViolation(ex.Message);
+            }
+            finally
+            {
+                pressedKeys.Clear();
+            }
         };
         gameTimer.Start();
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
-        e.Graphics.Clear(Color.Black);
-        e.Graphics.SmoothingMode = SmoothingMode.None;
-        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
-        e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-        e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-
-        var scale = Math.Min((float)ClientSize.Width / VirtualWidth, (float)ClientSize.Height / VirtualHeight);
-        var drawWidth = VirtualWidth * scale;
-        var drawHeight = VirtualHeight * scale;
-        var offsetX = (ClientSize.Width - drawWidth) / 2f;
-        var offsetY = (ClientSize.Height - drawHeight) / 2f;
-
-        e.Graphics.TranslateTransform(offsetX, offsetY);
-        e.Graphics.ScaleTransform(scale, scale);
-
-        switch (gameState)
+        try
         {
-            case GameState.ModeSelect:
-                DrawModeSelect(e.Graphics);
-                break;
-            case GameState.LanguageSelection:
-                DrawLanguageSelection(e.Graphics);
-                break;
-            case GameState.NameInput:
-                DrawNameInput(e.Graphics);
-                break;
-            case GameState.Field:
-                DrawField(e.Graphics);
-                break;
-            case GameState.Battle:
-                DrawBattle(e.Graphics);
-                break;
-            case GameState.ShopBuy:
-                DrawShopBuy(e.Graphics);
-                break;
+            base.OnPaint(e);
+
+            e.Graphics.Clear(Color.Black);
+            e.Graphics.SmoothingMode = SmoothingMode.None;
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+            e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+            e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+
+            var scale = Math.Min((float)ClientSize.Width / VirtualWidth, (float)ClientSize.Height / VirtualHeight);
+            var drawWidth = VirtualWidth * scale;
+            var drawHeight = VirtualHeight * scale;
+            var offsetX = (ClientSize.Width - drawWidth) / 2f;
+            var offsetY = (ClientSize.Height - drawHeight) / 2f;
+
+            e.Graphics.TranslateTransform(offsetX, offsetY);
+            e.Graphics.ScaleTransform(scale, scale);
+
+            switch (gameState)
+            {
+                case GameState.ModeSelect:
+                    DrawModeSelect(e.Graphics);
+                    break;
+                case GameState.LanguageSelection:
+                    DrawLanguageSelection(e.Graphics);
+                    break;
+                case GameState.NameInput:
+                    DrawNameInput(e.Graphics);
+                    break;
+                case GameState.SaveSlotSelection:
+                    DrawSaveSlotSelection(e.Graphics);
+                    break;
+                case GameState.Field:
+                    DrawField(e.Graphics);
+                    break;
+                case GameState.EncounterTransition:
+                    DrawEncounterTransition(e.Graphics);
+                    break;
+                case GameState.Battle:
+                    DrawBattle(e.Graphics);
+                    break;
+                case GameState.ShopBuy:
+                    DrawShopBuy(e.Graphics);
+                    break;
+            }
+
+            if (!fontLoaded)
+            {
+                DrawWindow(e.Graphics, new Rectangle(8, 8, 624, 44));
+                DrawText(e.Graphics, "TTF NOT FOUND: USING FALLBACK FONT", 20, 20);
+            }
+
+            if (startupFadeFrames > 0)
+            {
+                var alpha = (int)(255f * startupFadeFrames / 20f);
+                using var fadeBrush = new SolidBrush(Color.FromArgb(alpha, Color.Black));
+                e.Graphics.FillRectangle(fadeBrush, 0, 0, VirtualWidth, VirtualHeight);
+            }
         }
-
-        if (!fontLoaded)
+        catch (TamperDetectedException ex)
         {
-            DrawWindow(e.Graphics, new Rectangle(8, 8, 624, 44));
-            DrawText(e.Graphics, "TTF NOT FOUND: USING FALLBACK FONT", 20, 20);
-        }
-
-        if (startupFadeFrames > 0)
-        {
-            var alpha = (int)(255f * startupFadeFrames / 20f);
-            using var fadeBrush = new SolidBrush(Color.FromArgb(alpha, Color.Black));
-            e.Graphics.FillRectangle(fadeBrush, 0, 0, VirtualWidth, VirtualHeight);
+            HandleSecurityViolation(ex.Message);
         }
     }
 
@@ -173,7 +210,17 @@ public partial class Form1 : Form
 
     private void CleanupResources()
     {
-        SaveGame();
+        if (!skipSaveOnClose)
+        {
+            try
+            {
+                SaveGame();
+            }
+            catch (TamperDetectedException)
+            {
+            }
+        }
+
         gameTimer.Stop();
         gameTimer.Dispose();
         bgmPlayer.Stop();
@@ -183,5 +230,19 @@ public partial class Form1 : Form
         uiFont.Dispose();
         smallFont.Dispose();
         privateFontCollection.Dispose();
+    }
+
+    private void HandleSecurityViolation(string message)
+    {
+        if (skipSaveOnClose)
+        {
+            return;
+        }
+
+        skipSaveOnClose = true;
+        gameTimer.Stop();
+        Hide();
+        MessageBox.Show(message, "DragonGlare Alpha", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+        Close();
     }
 }

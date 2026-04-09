@@ -47,11 +47,7 @@ public partial class Form1
     {
         bgmPlayer.Volume = 0.45;
         sePlayer.Volume = 0.9;
-        bgmPlayer.MediaEnded += (_, _) =>
-        {
-            bgmPlayer.Position = TimeSpan.Zero;
-            bgmPlayer.Play();
-        };
+        bgmPlayer.MediaEnded += (_, _) => RestartCurrentBgm();
 
         RegisterBgm(BgmTrack.MainMenu, "main_menu", "glare");
         RegisterBgm(BgmTrack.Field, "field");
@@ -143,6 +139,7 @@ public partial class Form1
 
         if (currentBgmTrack == desiredTrack)
         {
+            EnsureBgmLooping();
             return;
         }
 
@@ -165,6 +162,7 @@ public partial class Form1
         {
             GameState.Battle => BgmTrack.Battle,
             GameState.ShopBuy => BgmTrack.Shop,
+            GameState.EncounterTransition => GetFieldBgmTrack(currentFieldMap),
             GameState.Field => GetFieldBgmTrack(currentFieldMap),
             _ => BgmTrack.MainMenu
         };
@@ -190,5 +188,37 @@ public partial class Form1
         sePlayer.Open(seUri);
         sePlayer.Position = TimeSpan.Zero;
         sePlayer.Play();
+    }
+
+    private void EnsureBgmLooping()
+    {
+        if (currentBgmTrack is null || !bgmPlayer.NaturalDuration.HasTimeSpan)
+        {
+            return;
+        }
+
+        var duration = bgmPlayer.NaturalDuration.TimeSpan;
+        if (duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (duration - bgmPlayer.Position > BgmLoopLeadTime)
+        {
+            return;
+        }
+
+        RestartCurrentBgm();
+    }
+
+    private void RestartCurrentBgm()
+    {
+        if (currentBgmTrack is null)
+        {
+            return;
+        }
+
+        bgmPlayer.Position = TimeSpan.Zero;
+        bgmPlayer.Play();
     }
 }

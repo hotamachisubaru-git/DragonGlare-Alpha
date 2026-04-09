@@ -1,32 +1,79 @@
 using DragonGlareAlpha.Domain;
+using DragonGlareAlpha.Security;
 
 namespace DragonGlareAlpha.Domain.Player;
 
 public sealed class PlayerProgress
 {
+    private readonly ProtectedInt level = new(1);
+    private readonly ProtectedInt experience = new();
+    private readonly ProtectedInt maxHp = new(20);
+    private readonly ProtectedInt currentHp = new(20);
+    private readonly ProtectedInt maxMp = new(2);
+    private readonly ProtectedInt currentMp = new(2);
+    private readonly ProtectedInt baseAttack = new(5);
+    private readonly ProtectedInt baseDefense = new(3);
+    private readonly ProtectedInt gold = new(220);
+
     public string Name { get; set; } = string.Empty;
 
     public UiLanguage Language { get; set; } = UiLanguage.Japanese;
 
     public Point TilePosition { get; set; }
 
-    public int Level { get; set; } = 1;
+    public int Level
+    {
+        get => level.Value;
+        set => level.Value = value;
+    }
 
-    public int Experience { get; set; }
+    public int Experience
+    {
+        get => experience.Value;
+        set => experience.Value = value;
+    }
 
-    public int MaxHp { get; set; } = 20;
+    public int MaxHp
+    {
+        get => maxHp.Value;
+        set => maxHp.Value = value;
+    }
 
-    public int CurrentHp { get; set; } = 20;
+    public int CurrentHp
+    {
+        get => currentHp.Value;
+        set => currentHp.Value = value;
+    }
 
-    public int MaxMp { get; set; } = 2;
+    public int MaxMp
+    {
+        get => maxMp.Value;
+        set => maxMp.Value = value;
+    }
 
-    public int CurrentMp { get; set; } = 2;
+    public int CurrentMp
+    {
+        get => currentMp.Value;
+        set => currentMp.Value = value;
+    }
 
-    public int BaseAttack { get; set; } = 5;
+    public int BaseAttack
+    {
+        get => baseAttack.Value;
+        set => baseAttack.Value = value;
+    }
 
-    public int BaseDefense { get; set; } = 3;
+    public int BaseDefense
+    {
+        get => baseDefense.Value;
+        set => baseDefense.Value = value;
+    }
 
-    public int Gold { get; set; } = 220;
+    public int Gold
+    {
+        get => gold.Value;
+        set => gold.Value = value;
+    }
 
     public string? EquippedWeaponId { get; set; }
 
@@ -126,6 +173,42 @@ public sealed class PlayerProgress
         if (!string.IsNullOrWhiteSpace(EquippedWeaponId) && GetItemCount(EquippedWeaponId) == 0)
         {
             AddItem(EquippedWeaponId, 1);
+        }
+    }
+
+    public void ValidateIntegrity()
+    {
+        level.Validate();
+        experience.Validate();
+        maxHp.Validate();
+        currentHp.Validate();
+        maxMp.Validate();
+        currentMp.Validate();
+        baseAttack.Validate();
+        baseDefense.Validate();
+        gold.Validate();
+
+        foreach (var entry in Inventory)
+        {
+            entry.ValidateIntegrity();
+        }
+    }
+
+    public void RekeySensitiveValues()
+    {
+        level.Rekey();
+        experience.Rekey();
+        maxHp.Rekey();
+        currentHp.Rekey();
+        maxMp.Rekey();
+        currentMp.Rekey();
+        baseAttack.Rekey();
+        baseDefense.Rekey();
+        gold.Rekey();
+
+        foreach (var entry in Inventory)
+        {
+            entry.RekeySensitiveValues();
         }
     }
 }

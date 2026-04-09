@@ -32,8 +32,7 @@ public partial class Form1
             if (playerName.Length > 0)
             {
                 player.Name = TrimPlayerName(playerName.ToString());
-                ChangeGameState(GameState.Field);
-                PersistProgress();
+                OpenSaveSlotSelection(SaveSlotSelectionMode.Save);
             }
 
             return;
@@ -74,6 +73,12 @@ public partial class Form1
         player.TilePosition = target;
         if (TryTransitionFromTile(target))
         {
+            return true;
+        }
+
+        if (TryTriggerRandomEncounter())
+        {
+            PersistProgress();
             return true;
         }
 

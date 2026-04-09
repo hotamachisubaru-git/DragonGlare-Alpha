@@ -1,6 +1,7 @@
 using System.Drawing.Drawing2D;
 using DragonGlareAlpha.Data;
 using DragonGlareAlpha.Domain;
+using DragonGlareAlpha.Persistence;
 using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
@@ -65,6 +66,82 @@ public partial class Form1
         DrawText(g, selectedLanguage == UiLanguage.Japanese ? "ESC: もどる" : "ESC: BACK", 14, 442);
     }
 
+    private void DrawSaveSlotSelection(Graphics g)
+    {
+        DrawMenuBackdrop(g);
+
+        var titleRect = new Rectangle(98, 24, 444, 64);
+        DrawWindow(g, titleRect);
+        DrawText(
+            g,
+            saveSlotSelectionMode == SaveSlotSelectionMode.Save
+                ? "ぼうけんのしょを えらんでください"
+                : "よみこむ ぼうけんのしょを えらんでください",
+            new Rectangle(126, 40, 388, 22),
+            smallFont);
+        DrawText(
+            g,
+            saveSlotSelectionMode == SaveSlotSelectionMode.Save
+                ? "CHOOSE A SAVE SLOT"
+                : "CHOOSE A FILE TO LOAD",
+            new Rectangle(126, 62, 388, 18),
+            smallFont);
+
+        for (var index = 0; index < SaveService.SlotCount; index++)
+        {
+            var slotNumber = index + 1;
+            var summary = saveSlotSummaries.ElementAtOrDefault(index) ?? new SaveSlotSummary
+            {
+                SlotNumber = slotNumber,
+                State = SaveSlotState.Empty
+            };
+
+            var slotRect = new Rectangle(98, 108 + (index * 86), 444, 76);
+            DrawWindow(g, slotRect);
+            if (saveSlotCursor == index)
+            {
+                DrawSelectionMarker(g, slotRect.X + 14, slotRect.Y + 24);
+            }
+
+            DrawText(g, $"ぼうけんのしょ {slotNumber}", slotRect.X + 38, slotRect.Y + 10, smallFont);
+
+            switch (summary.State)
+            {
+                case SaveSlotState.Occupied:
+                    DrawText(g, $"{summary.Name}   LV {summary.Level}   G {summary.Gold}", slotRect.X + 38, slotRect.Y + 30, smallFont);
+                    DrawText(
+                        g,
+                        $"{GetMapDisplayName(summary.CurrentFieldMap)}  {summary.SavedAtLocal:yyyy/MM/dd HH:mm}",
+                        new Rectangle(slotRect.X + 38, slotRect.Y + 50, 380, 16),
+                        smallFont);
+                    break;
+                case SaveSlotState.Corrupted:
+                    DrawText(g, "BROKEN DATA / よみこめません", slotRect.X + 38, slotRect.Y + 32, smallFont);
+                    break;
+                default:
+                    DrawText(g, "NO DATA / まだ きろくがありません", slotRect.X + 38, slotRect.Y + 32, smallFont);
+                    break;
+            }
+        }
+
+        var helpRect = new Rectangle(116, 408, 408, 40);
+        DrawWindow(g, helpRect);
+        DrawText(
+            g,
+            saveSlotSelectionMode == SaveSlotSelectionMode.Save
+                ? "ENTER: きろく  ESC: なまえにもどる"
+                : "ENTER: よみこむ  ESC: モードにもどる",
+            new Rectangle(136, 420, 368, 18),
+            smallFont);
+
+        if (!string.IsNullOrWhiteSpace(menuNotice))
+        {
+            var noticeRect = new Rectangle(110, 366, 420, 30);
+            DrawWindow(g, noticeRect);
+            DrawText(g, menuNotice, Rectangle.Inflate(noticeRect, -18, -10), smallFont);
+        }
+    }
+
     private void DrawField(Graphics g)
     {
         DrawFieldScene(g);
@@ -100,30 +177,30 @@ public partial class Form1
     {
         DrawMenuBackdrop(g);
 
-        var statusRect = new Rectangle(44, 26, 254, 168);
+        var statusRect = new Rectangle(44, 26, 220, 150);
         DrawWindow(g, statusRect);
-        DrawText(g, $"{GetDisplayPlayerName()}  Lv.{player.Level}", new Rectangle(66, 42, 210, 24), smallFont);
-        DrawText(g, $"HP {player.CurrentHp}/{player.MaxHp}", new Rectangle(66, 68, 210, 24), smallFont);
-        DrawText(g, $"MP {player.CurrentMp}/{player.MaxMp}", new Rectangle(66, 94, 210, 24), smallFont);
-        DrawText(g, $"ATK {GetTotalAttack()}  DEF {GetTotalDefense()}", new Rectangle(66, 120, 210, 24), smallFont);
-        DrawText(g, GetEquippedWeaponName(), new Rectangle(66, 146, 210, 24), smallFont);
+        DrawText(g, $"{GetDisplayPlayerName()}  Lv.{player.Level}", new Rectangle(statusRect.X + 22, statusRect.Y + 16, 176, 24), smallFont);
+        DrawText(g, $"HP {player.CurrentHp}/{player.MaxHp}", new Rectangle(statusRect.X + 22, statusRect.Y + 42, 176, 24), smallFont);
+        DrawText(g, $"MP {player.CurrentMp}/{player.MaxMp}", new Rectangle(statusRect.X + 22, statusRect.Y + 68, 176, 24), smallFont);
+        DrawText(g, $"ATK {GetTotalAttack()}  DEF {GetTotalDefense()}", new Rectangle(statusRect.X + 22, statusRect.Y + 94, 176, 24), smallFont);
+        DrawText(g, GetEquippedWeaponName(), new Rectangle(statusRect.X + 22, statusRect.Y + 120, 176, 24), smallFont);
 
-        var enemyInfoRect = new Rectangle(332, 26, 236, 76);
+        var enemyInfoRect = new Rectangle(292, 26, 276, 76);
         DrawWindow(g, enemyInfoRect);
-        DrawText(g, currentEncounter?.Enemy.Name ?? "まもの", new Rectangle(350, 40, 200, 24), smallFont);
+        DrawText(g, currentEncounter?.Enemy.Name ?? "まもの", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 14, 236, 24), smallFont);
         if (currentEncounter is not null)
         {
-            DrawText(g, $"HP {currentEncounter.CurrentHp}/{currentEncounter.Enemy.MaxHp}", new Rectangle(350, 64, 110, 24), smallFont);
-            DrawText(g, $"EXP {currentEncounter.Enemy.ExperienceReward}", new Rectangle(456, 64, 92, 24), smallFont, StringAlignment.Far);
+            DrawText(g, $"HP {currentEncounter.CurrentHp}/{currentEncounter.Enemy.MaxHp}", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 38, 122, 24), smallFont);
+            DrawText(g, $"EXP {currentEncounter.Enemy.ExperienceReward}", new Rectangle(enemyInfoRect.X + 146, enemyInfoRect.Y + 38, 108, 24), smallFont, StringAlignment.Far);
         }
 
-        var actionHeaderRect = new Rectangle(332, 112, 236, 40);
+        var actionHeaderRect = new Rectangle(292, 112, 276, 40);
         DrawWindow(g, actionHeaderRect);
         DrawText(g, "こうどう", Rectangle.Inflate(actionHeaderRect, -12, -3), smallFont, StringAlignment.Center, StringAlignment.Center);
 
-        var actionListRect = new Rectangle(332, 152, 236, 92);
+        var actionListRect = new Rectangle(292, 152, 276, 92);
         DrawWindow(g, actionListRect);
-        var commandGridRect = Rectangle.Inflate(actionListRect, -18, -10);
+        var commandGridRect = Rectangle.Inflate(actionListRect, -16, -10);
         var commandCellWidth = commandGridRect.Width / 2;
         var commandCellHeight = commandGridRect.Height / 2;
         for (var row = 0; row < 2; row++)
@@ -143,7 +220,7 @@ public partial class Form1
                 DrawText(
                     g,
                     GameContent.BattleCommandLabels[row, column],
-                    new Rectangle(cellRect.X + 20, cellRect.Y - 1, cellRect.Width - 20, cellRect.Height),
+                    new Rectangle(cellRect.X + 28, cellRect.Y - 1, cellRect.Width - 30, cellRect.Height),
                     smallFont,
                     StringAlignment.Near,
                     StringAlignment.Center);
@@ -159,6 +236,56 @@ public partial class Form1
         if (battleFlowState != BattleFlowState.CommandSelection)
         {
             DrawText(g, "ENTER: フィールドへ", new Rectangle(336, 414, 210, 20), smallFont, StringAlignment.Far);
+        }
+    }
+
+    private void DrawEncounterTransition(Graphics g)
+    {
+        DrawFieldScene(g);
+
+        var progress = 1f - (encounterTransitionFrames / (float)EncounterTransitionDuration);
+        var stripeProgress = Math.Clamp((progress - 0.08f) / 0.68f, 0f, 1f);
+        var finalFlash = Math.Clamp((progress - 0.72f) / 0.28f, 0f, 1f);
+        var flashPulse = progress <= 0.36f
+            ? 1f - Math.Abs((progress / 0.36f * 2f) - 1f)
+            : 0f;
+
+        if (flashPulse > 0f)
+        {
+            using var pulseBrush = new SolidBrush(Color.FromArgb((int)(flashPulse * 170f), Color.White));
+            g.FillRectangle(pulseBrush, 0, 0, VirtualWidth, VirtualHeight);
+        }
+
+        const int stripeCount = 12;
+        var stripeHeight = (int)Math.Ceiling(VirtualHeight / (float)stripeCount);
+        var filledHeight = Math.Max(1, (int)Math.Ceiling(stripeHeight * stripeProgress));
+        using var stripeBrush = new SolidBrush(Color.FromArgb(240, 252, 252, 255));
+        for (var index = 0; index < stripeCount; index++)
+        {
+            var y = index * stripeHeight;
+            var inset = (int)((index % 2 == 0 ? 26f : 12f) * (1f - stripeProgress));
+            g.FillRectangle(stripeBrush, inset, y, VirtualWidth - (inset * 2), filledHeight);
+        }
+
+        if (pendingEncounter is not null && progress >= 0.36f)
+        {
+            var messageRect = new Rectangle(124, 386, 392, 42);
+            using var shadowBrush = new SolidBrush(Color.FromArgb(128, 0, 0, 0));
+            g.FillRectangle(shadowBrush, messageRect.X + 4, messageRect.Y + 4, messageRect.Width, messageRect.Height);
+            DrawWindow(g, messageRect);
+            DrawText(
+                g,
+                $"{pendingEncounter.Enemy.Name}の けはいがする…",
+                Rectangle.Inflate(messageRect, -18, -10),
+                smallFont,
+                StringAlignment.Center,
+                StringAlignment.Center);
+        }
+
+        if (finalFlash > 0f)
+        {
+            using var flashBrush = new SolidBrush(Color.FromArgb((int)(finalFlash * 255f), Color.White));
+            g.FillRectangle(flashBrush, 0, 0, VirtualWidth, VirtualHeight);
         }
     }
 
@@ -225,46 +352,8 @@ public partial class Form1
             for (var x = 0; x < map.GetLength(1); x++)
             {
                 var tileRect = new Rectangle(x * TileSize, y * TileSize, TileSize, TileSize);
-                if (map[y, x] == MapFactory.WallTile)
-                {
-                    using var wallBrush = new SolidBrush(Color.FromArgb(8, 30, 90));
-                    g.FillRectangle(wallBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.CastleBlockTile)
-                {
-                    using var castleBrush = new SolidBrush(Color.FromArgb(80, 20, 20));
-                    g.FillRectangle(castleBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.CastleGateTile)
-                {
-                    using var castleGateBrush = new SolidBrush(Color.FromArgb(108, 46, 26));
-                    g.FillRectangle(castleGateBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.FieldGateTile)
-                {
-                    using var fieldGateBrush = new SolidBrush(Color.FromArgb(24, 56, 40));
-                    g.FillRectangle(fieldGateBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.CastleFloorTile)
-                {
-                    using var castleFloorBrush = new SolidBrush(Color.FromArgb(50, 50, 62));
-                    g.FillRectangle(castleFloorBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.GrassTile)
-                {
-                    using var grassBrush = new SolidBrush(Color.FromArgb(24, 74, 36));
-                    g.FillRectangle(grassBrush, tileRect);
-                }
-                else if (map[y, x] == MapFactory.DecorationBlueTile)
-                {
-                    using var decorationBrush = new SolidBrush(Color.FromArgb(8, 30, 90));
-                    g.FillRectangle(decorationBrush, tileRect);
-                }
-                else
-                {
-                    using var floorBrush = new SolidBrush(Color.FromArgb(5, 5, 5));
-                    g.FillRectangle(floorBrush, tileRect);
-                }
+                using var tileBrush = new SolidBrush(GetTileColor(map[y, x]));
+                g.FillRectangle(tileBrush, tileRect);
             }
         }
 
@@ -274,6 +363,23 @@ public partial class Form1
         }
 
         DrawTileEntity(g, player.TilePosition, Color.White);
+    }
+
+    private Color GetTileColor(int tileId)
+    {
+        return tileId switch
+        {
+            MapFactory.WallTile when currentFieldMap == FieldMapId.Castle => Color.FromArgb(58, 14, 24),
+            MapFactory.WallTile => Color.FromArgb(8, 30, 90),
+            MapFactory.CastleBlockTile => Color.FromArgb(120, 28, 38),
+            MapFactory.CastleGateTile => Color.FromArgb(116, 58, 30),
+            MapFactory.FieldGateTile => Color.FromArgb(24, 56, 40),
+            MapFactory.CastleFloorTile => Color.FromArgb(108, 42, 52),
+            MapFactory.GrassTile => Color.FromArgb(24, 74, 36),
+            MapFactory.DecorationBlueTile when currentFieldMap == FieldMapId.Castle => Color.FromArgb(76, 20, 34),
+            MapFactory.DecorationBlueTile => Color.FromArgb(8, 30, 90),
+            _ => Color.FromArgb(5, 5, 5)
+        };
     }
 
     private void DrawBattleEnemy(Graphics g, Point center)

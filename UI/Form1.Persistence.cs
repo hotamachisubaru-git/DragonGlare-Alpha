@@ -33,6 +33,8 @@ public partial class Form1
         languageCursor = 0;
         nameCursorRow = 0;
         nameCursorColumn = 0;
+        activeSaveSlot = 0;
+        saveSlotCursor = 0;
         playerName.Clear();
         player = progressionService.CreateNewPlayer(UiLanguage.Japanese, PlayerStartTile);
         SetFieldMap(FieldMapId.Hub);
@@ -41,6 +43,9 @@ public partial class Form1
         isNpcDialogOpen = false;
         isFieldStatusVisible = false;
         movementCooldown = 0;
+        encounterTransitionFrames = 0;
+        pendingEncounter = null;
+        ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
         shopItemCursor = 0;
@@ -49,13 +54,14 @@ public partial class Form1
         ChangeGameState(GameState.LanguageSelection);
     }
 
-    private bool TryLoadGame()
+    private bool TryLoadGame(int slotNumber)
     {
-        if (!saveService.TryLoad(SaveFilePath, out var save) || save is null)
+        if (!saveService.TryLoadSlot(slotNumber, out var save) || save is null)
         {
             return false;
         }
 
+        activeSaveSlot = slotNumber;
         selectedLanguage = string.Equals(save.Language, "en", StringComparison.OrdinalIgnoreCase)
             ? UiLanguage.English
             : UiLanguage.Japanese;
@@ -91,6 +97,9 @@ public partial class Form1
         isNpcDialogOpen = false;
         isFieldStatusVisible = false;
         movementCooldown = 0;
+        encounterTransitionFrames = 0;
+        pendingEncounter = null;
+        ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
         shopItemCursor = 0;
@@ -126,14 +135,20 @@ public partial class Form1
             return;
         }
 
+        if (activeSaveSlot is < 1 or > SaveService.SlotCount)
+        {
+            return;
+        }
+
         player.Language = selectedLanguage;
 
         var save = new SaveData
         {
-            Version = 4,
+            Version = 6,
             SavedAtUtc = DateTime.UtcNow,
             Language = selectedLanguage == UiLanguage.English ? "en" : "ja",
             Name = TrimPlayerName(player.Name),
+            SlotNumber = activeSaveSlot,
             CurrentFieldMap = currentFieldMap,
             PlayerX = player.TilePosition.X,
             PlayerY = player.TilePosition.Y,
@@ -152,7 +167,8 @@ public partial class Form1
 
         try
         {
-            saveService.Save(SaveFilePath, save);
+            saveService.SaveSlot(activeSaveSlot, save);
+            RefreshSaveSlotSummaries();
         }
         catch
         {
