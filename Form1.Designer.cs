@@ -30,7 +30,7 @@ partial class Form1
     {
         components = new System.ComponentModel.Container();
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(800, 450);
+        ClientSize = UiCanvas.VirtualSize;
         Text = "Form1";
     }
 

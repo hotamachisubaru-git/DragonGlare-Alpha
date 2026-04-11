@@ -94,6 +94,11 @@ public partial class Form1
 
     private bool WasPressed(Keys key) => pressedKeys.Contains(key);
 
+    private bool WasConfirmPressed()
+    {
+        return WasPressed(Keys.Enter) || WasPressed(Keys.Z) || WasPressed(Keys.X);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (!heldKeys.Contains(e.KeyCode))

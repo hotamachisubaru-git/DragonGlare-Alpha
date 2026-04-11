@@ -13,6 +13,7 @@ public partial class Form1
     {
         frameCounter++;
         UpdateFieldMovementAnimation();
+        UpdateBattleVisualEffects();
         RunAntiCheatChecks();
 
         if (startupFadeFrames > 0)
@@ -309,13 +310,14 @@ public partial class Form1
         if (currentEncounter is null)
         {
             battleFlowState = BattleFlowState.CommandSelection;
+            ResetBattleVisualEffects();
             ChangeGameState(GameState.Field);
             return;
         }
 
         if (battleFlowState != BattleFlowState.CommandSelection)
         {
-            if (WasPressed(Keys.Enter) || WasPressed(Keys.Escape))
+            if (WasConfirmPressed() || WasPressed(Keys.Escape))
             {
                 FinishBattle();
             }
@@ -348,13 +350,14 @@ public partial class Form1
             return;
         }
 
-        if (!WasPressed(Keys.Enter))
+        if (!WasConfirmPressed())
         {
             return;
         }
 
         var action = GameContent.BattleCommandGrid[battleCursorRow, battleCursorColumn];
         var result = battleService.ResolveTurn(player, currentEncounter, action, GetEquippedWeapon(), null, random);
+        ApplyBattleVisualEffects(result);
         var resultMessage = FormatBattleResolutionMessage(result.Steps);
 
         switch (result.Outcome)
@@ -408,6 +411,7 @@ public partial class Form1
         battleCursorRow = 0;
         battleCursorColumn = 0;
         battleFlowState = BattleFlowState.CommandSelection;
+        ResetBattleVisualEffects();
         battleMessage = $"{currentEncounter.Enemy.Name}が あらわれた！";
         ChangeGameState(GameState.Battle);
     }
@@ -503,6 +507,7 @@ public partial class Form1
         pendingEncounter = null;
         encounterTransitionFrames = 0;
         ResetEncounterCounter();
+        ResetBattleVisualEffects();
         battleFlowState = BattleFlowState.CommandSelection;
         battleCursorRow = 0;
         battleCursorColumn = 0;
@@ -540,8 +545,39 @@ public partial class Form1
         battleCursorRow = 0;
         battleCursorColumn = 0;
         battleFlowState = BattleFlowState.CommandSelection;
+        ResetBattleVisualEffects();
         ResetEncounterCounter();
         ChangeGameState(GameState.EncounterTransition);
         PlaySe(SoundEffect.Dialog);
+    }
+
+    private void UpdateBattleVisualEffects()
+    {
+        if (enemyHitFlashFramesRemaining > 0)
+        {
+            enemyHitFlashFramesRemaining--;
+        }
+    }
+
+    private void ResetBattleVisualEffects()
+    {
+        enemyHitFlashFramesRemaining = 0;
+    }
+
+    private void ApplyBattleVisualEffects(BattleTurnResolution result)
+    {
+        enemyHitFlashFramesRemaining = 0;
+        if (currentEncounter is null || currentEncounter.CurrentHp <= 0)
+        {
+            return;
+        }
+
+        foreach (var step in result.Steps)
+        {
+            if (step.VisualCue == BattleVisualCue.EnemyHit)
+            {
+                enemyHitFlashFramesRemaining = Math.Max(enemyHitFlashFramesRemaining, step.AnimationFrames);
+            }
+        }
     }
 }

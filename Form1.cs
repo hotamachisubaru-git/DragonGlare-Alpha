@@ -15,8 +15,6 @@ namespace DragonGlareAlpha;
 
 public partial class Form1 : Form
 {
-    private const int VirtualWidth = 640;
-    private const int VirtualHeight = 480;
     private const int TileSize = 32;
     private const int CompactFieldViewportWidthTiles = 13;
     private const int ExpandedFieldViewportWidthTiles = 17;
@@ -49,8 +47,8 @@ public partial class Form1 : Form
     private readonly ShopService shopService = new();
     private readonly FieldEventService fieldEventService = new();
 
-    private Font uiFont = new("Consolas", 20, GraphicsUnit.Pixel);
-    private Font smallFont = new("Consolas", 16, GraphicsUnit.Pixel);
+    private Font uiFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
+    private Font smallFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
 
     private PlayerProgress player = PlayerProgress.CreateDefault(PlayerStartTile);
     private BattleEncounter? currentEncounter;
@@ -87,6 +85,7 @@ public partial class Form1 : Form
     private bool skipSaveOnClose;
     private int encounterTransitionFrames;
     private int fieldEncounterStepsRemaining = 7;
+    private int enemyHitFlashFramesRemaining;
     private BattleEncounter? pendingEncounter;
     private IReadOnlyList<string> activeFieldDialogPages = [];
     private int activeFieldDialogPageIndex;
@@ -138,9 +137,9 @@ public partial class Form1 : Form
             e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
             e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
 
-            var scale = Math.Min((float)ClientSize.Width / VirtualWidth, (float)ClientSize.Height / VirtualHeight);
-            var drawWidth = VirtualWidth * scale;
-            var drawHeight = VirtualHeight * scale;
+            var scale = Math.Min((float)ClientSize.Width / UiCanvas.VirtualWidth, (float)ClientSize.Height / UiCanvas.VirtualHeight);
+            var drawWidth = UiCanvas.VirtualWidth * scale;
+            var drawHeight = UiCanvas.VirtualHeight * scale;
             var offsetX = (ClientSize.Width - drawWidth) / 2f;
             var offsetY = (ClientSize.Height - drawHeight) / 2f;
 
@@ -177,7 +176,7 @@ public partial class Form1 : Form
 
             if (!fontLoaded)
             {
-                DrawWindow(e.Graphics, new Rectangle(8, 8, 624, 44));
+                DrawWindow(e.Graphics, UiCanvas.FontFallbackWindow);
                 DrawText(e.Graphics, "TTF NOT FOUND: USING FALLBACK FONT", 20, 20);
             }
 
@@ -185,7 +184,7 @@ public partial class Form1 : Form
             {
                 var alpha = (int)(255f * startupFadeFrames / 20f);
                 using var fadeBrush = new SolidBrush(Color.FromArgb(alpha, Color.Black));
-                e.Graphics.FillRectangle(fadeBrush, 0, 0, VirtualWidth, VirtualHeight);
+                e.Graphics.FillRectangle(fadeBrush, 0, 0, UiCanvas.VirtualWidth, UiCanvas.VirtualHeight);
             }
         }
         catch (TamperDetectedException ex)
@@ -197,7 +196,7 @@ public partial class Form1 : Form
     private void ConfigureWindow()
     {
         Text = $"DragonGlare Alpha v{Application.ProductVersion}";
-        ClientSize = new Size(960, 720);
+        ClientSize = UiCanvas.WindowClientSize;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.Black;
         FormBorderStyle = FormBorderStyle.FixedSingle;

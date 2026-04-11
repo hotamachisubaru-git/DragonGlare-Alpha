@@ -142,7 +142,7 @@ public partial class Form1
         var heightTiles = GetFieldViewportHeightTiles();
         var width = widthTiles * TileSize;
         var height = heightTiles * TileSize;
-        var x = isFieldStatusVisible ? 16 : (VirtualWidth - width) / 2;
+        var x = isFieldStatusVisible ? 16 : (UiCanvas.VirtualWidth - width) / 2;
         var y = isFieldStatusVisible ? 112 : 114;
 
         if (!isFieldStatusVisible)
@@ -157,8 +157,8 @@ public partial class Form1
     private Rectangle GetFieldHelpWindow()
     {
         return isFieldStatusVisible
-            ? new Rectangle(8, 8, 430, 96)
-            : new Rectangle(8, 8, 624, 96);
+            ? FieldLayout.StatusVisibleHelpWindow
+            : FieldLayout.ExpandedHelpWindow;
     }
 
     private Rectangle GetCenteredFieldTileRectangle(Rectangle viewport)
@@ -284,6 +284,11 @@ public partial class Form1
 
     private string GetExperienceSummary()
     {
+        if (player.Level >= PlayerProgress.MaxLevelValue)
+        {
+            return "MAX";
+        }
+
         var current = progressionService.GetExperienceIntoCurrentLevel(player);
         var needed = progressionService.GetExperienceNeededForNextLevel(player);
         return $"{current}/{needed}";

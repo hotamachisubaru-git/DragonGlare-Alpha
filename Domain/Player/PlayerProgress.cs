@@ -5,6 +5,9 @@ namespace DragonGlareAlpha.Domain.Player;
 
 public sealed class PlayerProgress
 {
+    public const int MaxLevelValue = 99;
+    public const int MaxVitalValue = 999;
+    public const int MaxGoldValue = 99999;
     private readonly ProtectedInt level = new(1);
     private readonly ProtectedInt experience = new();
     private readonly ProtectedInt maxHp = new(20);
@@ -150,15 +153,23 @@ public sealed class PlayerProgress
 
     public void Normalize()
     {
-        Level = Math.Max(1, Level);
+        Level = Math.Clamp(Level, 1, MaxLevelValue);
         Experience = Math.Max(0, Experience);
-        MaxHp = MaxHp <= 0 ? 20 : MaxHp;
+        MaxHp = MaxHp <= 0 ? 20 : Math.Min(MaxHp, MaxVitalValue);
         CurrentHp = CurrentHp <= 0 ? MaxHp : Math.Min(CurrentHp, MaxHp);
-        MaxMp = MaxMp <= 0 ? 2 : MaxMp;
+        MaxMp = MaxMp <= 0 ? 2 : Math.Min(MaxMp, MaxVitalValue);
         CurrentMp = Math.Clamp(CurrentMp, 0, MaxMp);
         BaseAttack = BaseAttack <= 0 ? 5 : BaseAttack;
         BaseDefense = BaseDefense <= 0 ? 3 : BaseDefense;
-        Gold = Math.Max(0, Gold);
+        Gold = Math.Clamp(Gold, 0, MaxGoldValue);
+
+        if (Level == MaxLevelValue)
+        {
+            MaxHp = MaxVitalValue;
+            MaxMp = MaxVitalValue;
+            CurrentHp = Math.Min(CurrentHp, MaxHp);
+            CurrentMp = Math.Min(CurrentMp, MaxMp);
+        }
 
         Inventory = Inventory
             .Where(entry => !string.IsNullOrWhiteSpace(entry.ItemId) && entry.Quantity > 0)

@@ -53,6 +53,7 @@ public partial class Form1
         ResetFieldMovementAnimation();
         encounterTransitionFrames = 0;
         pendingEncounter = null;
+        ResetBattleVisualEffects();
         ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
@@ -108,6 +109,7 @@ public partial class Form1
         ResetFieldMovementAnimation();
         encounterTransitionFrames = 0;
         pendingEncounter = null;
+        ResetBattleVisualEffects();
         ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;

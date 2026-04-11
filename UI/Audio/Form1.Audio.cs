@@ -38,8 +38,8 @@ public partial class Form1
 
         uiFont.Dispose();
         smallFont.Dispose();
-        uiFont = new Font(privateFontCollection.Families[0], 24, FontStyle.Regular, GraphicsUnit.Pixel);
-        smallFont = new Font(privateFontCollection.Families[0], 18, FontStyle.Regular, GraphicsUnit.Pixel);
+        uiFont = new Font(privateFontCollection.Families[0], UiTypography.FontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel);
+        smallFont = new Font(privateFontCollection.Families[0], UiTypography.FontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel);
         fontLoaded = true;
     }
 
