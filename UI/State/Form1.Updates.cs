@@ -227,7 +227,7 @@ public partial class Form1
     {
         if (isFieldDialogOpen)
         {
-            if (WasPressed(Keys.Enter))
+            if (WasFieldInteractPressed())
             {
                 AdvanceFieldDialog();
             }
@@ -295,7 +295,7 @@ public partial class Form1
             }
         }
 
-        if (WasPressed(Keys.Enter))
+        if (WasFieldInteractPressed())
         {
             var fieldEvent = GetInteractableFieldEvent();
             if (fieldEvent is not null)
@@ -312,6 +312,17 @@ public partial class Form1
             battleFlowState = BattleFlowState.CommandSelection;
             ResetBattleVisualEffects();
             ChangeGameState(GameState.Field);
+            return;
+        }
+
+        if (battleFlowState == BattleFlowState.Intro)
+        {
+            if (WasConfirmPressed())
+            {
+                battleFlowState = BattleFlowState.CommandSelection;
+                battleMessage = GetBattleCommandPromptMessage();
+            }
+
             return;
         }
 
@@ -356,14 +367,14 @@ public partial class Form1
         }
 
         var action = GameContent.BattleCommandGrid[battleCursorRow, battleCursorColumn];
-        var result = battleService.ResolveTurn(player, currentEncounter, action, GetEquippedWeapon(), null, random);
+        var result = battleService.ResolveTurn(player, currentEncounter, action, GetEquippedWeapon(), GetEquippedArmor(), null, random);
         ApplyBattleVisualEffects(result);
         var resultMessage = FormatBattleResolutionMessage(result.Steps);
 
         switch (result.Outcome)
         {
             case BattleOutcome.Victory:
-                battleMessage = $"{resultMessage}\n{progressionService.ApplyBattleRewards(player, currentEncounter.Enemy.ExperienceReward, currentEncounter.Enemy.GoldReward, random)}";
+                battleMessage = $"{resultMessage}\n{progressionService.ApplyBattleRewards(player, currentEncounter.Enemy, random)}";
                 battleFlowState = BattleFlowState.Victory;
                 PersistProgress();
                 break;
@@ -410,9 +421,9 @@ public partial class Form1
         pendingEncounter = null;
         battleCursorRow = 0;
         battleCursorColumn = 0;
-        battleFlowState = BattleFlowState.CommandSelection;
+        battleFlowState = BattleFlowState.Intro;
         ResetBattleVisualEffects();
-        battleMessage = $"{currentEncounter.Enemy.Name}が あらわれた！";
+        battleMessage = GetBattleEncounterMessage(currentEncounter.Enemy.Name);
         ChangeGameState(GameState.Battle);
     }
 
@@ -425,13 +436,13 @@ public partial class Form1
                 shopPromptCursor = 1 - shopPromptCursor;
             }
 
-            if (WasPressed(Keys.Escape))
+            if (WasShopBackPressed())
             {
                 ChangeGameState(GameState.Field);
                 return;
             }
 
-            if (!WasPressed(Keys.Enter))
+            if (!WasShopConfirmPressed())
             {
                 return;
             }
@@ -439,7 +450,7 @@ public partial class Form1
             if (shopPromptCursor == 0)
             {
                 shopPhase = ShopPhase.BuyList;
-                shopItemCursor = 0;
+                ResetShopListSelection();
                 shopMessage = "＊「なにを かっていくかい？」";
                 return;
             }
@@ -448,7 +459,8 @@ public partial class Form1
             return;
         }
 
-        var maxIndex = GameContent.ShopCatalog.Length;
+        var visibleEntries = GetShopVisibleEntries();
+        var maxIndex = visibleEntries.Count - 1;
         if (WasPressed(Keys.Up) || WasPressed(Keys.W))
         {
             shopItemCursor = Math.Max(0, shopItemCursor - 1);
@@ -458,27 +470,45 @@ public partial class Form1
             shopItemCursor = Math.Min(maxIndex, shopItemCursor + 1);
         }
 
-        if (WasPressed(Keys.Escape))
+        if (WasShopBackPressed())
         {
             shopPhase = ShopPhase.Welcome;
+            shopPromptCursor = 0;
+            ResetShopListSelection();
             shopMessage = "＊「ほかに ようじは あるかい？」";
             return;
         }
 
-        if (!WasPressed(Keys.Enter))
+        if (!WasShopConfirmPressed())
         {
             return;
         }
 
-        if (shopItemCursor == maxIndex)
+        var selectedEntry = visibleEntries[shopItemCursor];
+        if (selectedEntry.Type == ShopMenuEntryType.PreviousPage)
+        {
+            ResetShopListSelection(shopPageIndex - 1);
+            shopMessage = "＊「なにを かっていくかい？」";
+            return;
+        }
+
+        if (selectedEntry.Type == ShopMenuEntryType.NextPage)
+        {
+            ResetShopListSelection(shopPageIndex + 1);
+            shopMessage = "＊「なにを かっていくかい？」";
+            return;
+        }
+
+        if (selectedEntry.Type == ShopMenuEntryType.Quit)
         {
             shopPhase = ShopPhase.Welcome;
+            shopPromptCursor = 0;
+            ResetShopListSelection();
             shopMessage = "＊「また きてくれよな！」";
             return;
         }
 
-        var item = GameContent.ShopCatalog[shopItemCursor];
-        var result = shopService.PurchaseWeapon(player, item, GetEquippedWeapon());
+        var result = shopService.PurchaseEquipment(player, selectedEntry.Item!, GetEquippedWeapon(), GetEquippedArmor());
         shopMessage = result.Message;
         if (result.Success)
         {
@@ -488,14 +518,14 @@ public partial class Form1
 
     private void EnterBattle()
     {
-        StartEncounterTransition(battleService.CreateEncounter(random));
+        StartEncounterTransition(battleService.CreateEncounter(random, currentFieldMap, player.Level));
     }
 
     private void EnterShopBuy()
     {
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
-        shopItemCursor = 0;
+        ResetShopListSelection();
         shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
         ChangeGameState(GameState.ShopBuy);
         PlaySe(SoundEffect.Dialog);
@@ -534,7 +564,7 @@ public partial class Form1
             return false;
         }
 
-        StartEncounterTransition(battleService.CreateEncounter(random));
+        StartEncounterTransition(battleService.CreateEncounter(random, currentFieldMap, player.Level));
         return true;
     }
 

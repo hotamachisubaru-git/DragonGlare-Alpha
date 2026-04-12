@@ -4,6 +4,7 @@ using DragonGlareAlpha.Domain.Field;
 using DragonGlareAlpha.Domain.Items;
 using DragonGlareAlpha.Domain.Player;
 
+
 namespace DragonGlareAlpha.Data;
 
 public static class GameContent
@@ -36,21 +37,69 @@ public static class GameContent
         { BattleActionType.Item, BattleActionType.Run }
     };
 
-    public static readonly WeaponDefinition[] ShopCatalog =
+　
+    public static readonly WeaponDefinition[] WeaponCatalog =
     [
         new("stick", "ぼう", 16, 2),
         new("club", "こんぼう", 32, 4),
+        new("bamboo_spear", "たけやり", 52, 6),
         new("thorn_club", "とげのぼう", 64, 7),
         new("wood_blade", "ぼくとう", 82, 8),
         new("stone_axe", "いしのおの", 128, 11),
-        new("bronze_sword", "どうのつるぎ", 196, 14)
+        new("bronze_sword", "どうのつるぎ", 196, 14),
+        new("iron_sword", "てつのけん", 288, 17),
+        new("steel_blade", "はがねけん", 416, 20),
+        new("dragon_lance", "りゅうのやり", 580, 24)
+    ];
+
+    public static readonly ArmorDefinition[] ArmorCatalog =
+    [
+        new("cloth_tunic", "ぬののふく", 18, 1),
+        new("leather_armor", "かわのよろい", 48, 3),
+        new("scale_vest", "うろこふく", 72, 4),
+        new("bronze_mail", "どうよろい", 108, 6),
+        new("iron_armor", "てつよろい", 152, 8),
+        new("steel_armor", "はがねよろい", 224, 10),
+        new("silver_mail", "ぎんむねあて", 336, 13),
+        new("dragon_mail", "りゅうよろい", 492, 16)
+    ];
+
+    public static readonly IEquipmentDefinition[] ShopCatalog =
+    [
+        WeaponCatalog[0],
+        ArmorCatalog[0],
+        WeaponCatalog[1],
+        ArmorCatalog[1],
+        WeaponCatalog[2],
+        WeaponCatalog[3],
+        ArmorCatalog[2],
+        WeaponCatalog[4],
+        ArmorCatalog[3],
+        WeaponCatalog[5],
+        ArmorCatalog[4],
+        WeaponCatalog[6],
+        ArmorCatalog[5],
+        WeaponCatalog[7],
+        ArmorCatalog[6],
+        WeaponCatalog[8],
+        ArmorCatalog[7],
+        WeaponCatalog[9]
     ];
 
     public static readonly EnemyDefinition[] EnemyCatalog =
     [
-        new("horn_slime", "ホーンスライム", 18, 5, 1, 8, 12),
-        new("night_shade", "ナイトシェイド", 28, 8, 3, 15, 24),
-        new("dragon_pup", "ドラゴンパピー", 36, 11, 5, 24, 38)
+        new("horn_slime", "ホーンスライム", FieldMapId.Hub, 1, 2, 6, 18, 5, 1, 8, 12, new EnemyDropDefinition("healing_herb", 24)),
+        new("moss_toad", "モストード", FieldMapId.Hub, 1, 4, 4, 24, 7, 2, 12, 18, new EnemyDropDefinition("healing_herb", 18)),
+        new("ember_bat", "エンバーバット", FieldMapId.Hub, 3, 6, 2, 30, 9, 3, 16, 24, new EnemyDropDefinition("mana_seed", 14)),
+        new("iron_mite", "アイアンマイト", FieldMapId.Castle, 1, 4, 5, 26, 8, 3, 13, 20, new EnemyDropDefinition("healing_herb", 18)),
+        new("night_shade", "ナイトシェイド", FieldMapId.Castle, 3, 7, 3, 38, 11, 5, 24, 34, new EnemyDropDefinition("mana_seed", 15)),
+        new("bell_armor", "ベルアーマー", FieldMapId.Castle, 5, 10, 2, 50, 14, 7, 38, 54, new EnemyDropDefinition("fire_orb", 12)),
+        new("bog_lizard", "ボグリザード", FieldMapId.Field, 2, 5, 5, 34, 10, 4, 20, 28, new EnemyDropDefinition("healing_herb", 18)),
+        new("stone_wolf", "ストーンウルフ", FieldMapId.Field, 4, 8, 4, 46, 14, 7, 34, 46, new EnemyDropDefinition("mana_seed", 15)),
+        new("dragon_pup", "ドラゴンパピー", FieldMapId.Field, 6, 11, 3, 58, 18, 9, 48, 68, new EnemyDropDefinition("fire_orb", 12)),
+        new("wyvern_scout", "ワイバーンスカウト", FieldMapId.Field, 9, 15, 3, 72, 21, 11, 66, 96, new EnemyDropDefinition("mana_seed", 10)),
+        new("lava_drake", "ラヴァドレイク", FieldMapId.Field, 13, 99, 2, 90, 25, 13, 88, 132, new EnemyDropDefinition("fire_orb", 15)),
+        new("ancient_wyrm", "エンシェントワーム", FieldMapId.Field, 18, 99, 1, 112, 29, 15, 120, 180, new EnemyDropDefinition("mana_seed", 12))
     ];
 
     public static readonly ConsumableDefinition[] ConsumableCatalog =
@@ -135,11 +184,11 @@ public static class GameContent
             FieldEventActionType.Dialogue,
             [
                 "たてふだだ。\nXで ステータスをひらける。",
-                "Bで バトル、Vで ショップ。\nENTERで イベントを よめる。"
+                "Bで バトル、Vで ショップ。\nZで イベントを よめる。"
             ],
             [
                 "A sign reads:\nPress X to open STATUS.",
-                "Press B for battle, V for shop,\nand ENTER to inspect events."
+                "Press B for battle, V for shop,\nand Z to inspect events."
             ]),
         new(
             "healing_spring",
@@ -172,7 +221,17 @@ public static class GameContent
             return null;
         }
 
-        return ShopCatalog.FirstOrDefault(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
+        return WeaponCatalog.FirstOrDefault(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
+    }
+
+    public static ArmorDefinition? GetArmorById(string? itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return null;
+        }
+
+        return ArmorCatalog.FirstOrDefault(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
     }
 
     public static ConsumableDefinition? GetConsumableById(string? itemId)
@@ -194,4 +253,9 @@ public static class GameContent
 
         return FieldEvents.FirstOrDefault(fieldEvent => string.Equals(fieldEvent.Id, eventId, StringComparison.Ordinal));
     }
+
+    public class DefendDefinition
+    {
+    }
+
 }

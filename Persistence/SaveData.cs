@@ -5,7 +5,7 @@ namespace DragonGlareAlpha.Persistence;
 
 public sealed class SaveData
 {
-    public int Version { get; set; } = 6;
+    public int Version { get; set; } = 7;
 
     public DateTime SavedAtUtc { get; set; } = DateTime.UtcNow;
 
@@ -40,6 +40,8 @@ public sealed class SaveData
     public int Gold { get; set; }
 
     public string? EquippedWeaponId { get; set; }
+
+    public string? EquippedArmorId { get; set; }
 
     public List<InventoryEntry> Inventory { get; set; } = [];
 

@@ -1,28 +1,48 @@
+using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Player;
 
 namespace DragonGlareAlpha.Services;
 
 public sealed class ShopService
 {
-    public ShopPurchaseResult PurchaseWeapon(PlayerProgress player, WeaponDefinition weapon, WeaponDefinition? currentWeapon)
+    public ShopPurchaseResult PurchaseEquipment(
+        PlayerProgress player,
+        IEquipmentDefinition equipment,
+        WeaponDefinition? currentWeapon,
+        ArmorDefinition? currentArmor)
     {
-        if (player.Gold < weapon.Price)
+        if (player.Gold < equipment.Price)
         {
             return new ShopPurchaseResult(false, false, "＊「おかねが たりないね。」");
         }
 
-        player.Gold -= weapon.Price;
-        player.AddItem(weapon.Id);
+        player.Gold -= equipment.Price;
+        player.AddItem(equipment.Id);
 
-        var shouldEquip = currentWeapon is null || weapon.AttackBonus > currentWeapon.AttackBonus;
-        if (shouldEquip)
+        var shouldEquip = false;
+        switch (equipment.Slot)
         {
-            player.EquippedWeaponId = weapon.Id;
+            case EquipmentSlot.Weapon:
+                shouldEquip = currentWeapon is null || equipment.AttackBonus > currentWeapon.AttackBonus;
+                if (shouldEquip)
+                {
+                    player.EquippedWeaponId = equipment.Id;
+                }
+
+                break;
+            case EquipmentSlot.Armor:
+                shouldEquip = currentArmor is null || equipment.DefenseBonus > currentArmor.DefenseBonus;
+                if (shouldEquip)
+                {
+                    player.EquippedArmorId = equipment.Id;
+                }
+
+                break;
         }
 
         var message = shouldEquip
-            ? $"＊「{weapon.Name}を かった！\n　さっそく そうびしたぜ。」"
-            : $"＊「{weapon.Name}を かった！\n　もちものに いれておくよ。」";
+            ? $"＊「{equipment.Name}を かった！\n　さっそく そうびしたぜ。」"
+            : $"＊「{equipment.Name}を かった！\n　もちものに いれておくよ。」";
 
         return new ShopPurchaseResult(true, shouldEquip, message);
     }

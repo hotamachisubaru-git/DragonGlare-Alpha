@@ -28,20 +28,21 @@ public partial class Form1
         DrawText(g, "DEF", new Rectangle(statusInnerLeft + 96, statLineY, 48, 24), smallFont);
         DrawText(g, GetTotalDefense().ToString(), new Rectangle(statusInnerLeft + 144, statLineY, 48, 24), smallFont, StringAlignment.Far);
 
-        var enemyInfoRect = new Rectangle(292, 26, 276, 76);
+        var enemyInfoRect = new Rectangle(292, 26, 276, 94);
         DrawWindow(g, enemyInfoRect);
         DrawText(g, currentEncounter?.Enemy.Name ?? "まもの", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 14, 236, 24), smallFont);
         if (currentEncounter is not null)
         {
-            DrawText(g, $"HP {currentEncounter.CurrentHp}/{currentEncounter.Enemy.MaxHp}", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 38, 128, 24), smallFont);
-            DrawText(g, $"EXP {currentEncounter.Enemy.ExperienceReward}", new Rectangle(enemyInfoRect.X + 146, enemyInfoRect.Y + 38, 108, 24), smallFont, StringAlignment.Far);
+            DrawText(g, $"HP {currentEncounter.CurrentHp}/{currentEncounter.Enemy.MaxHp}", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 38, 236, 24), smallFont);
+            DrawText(g, $"EXP {currentEncounter.Enemy.ExperienceReward}", new Rectangle(enemyInfoRect.X + 18, enemyInfoRect.Y + 60, 112, 24), smallFont);
+            DrawText(g, $"G {currentEncounter.Enemy.GoldReward}", new Rectangle(enemyInfoRect.X + 146, enemyInfoRect.Y + 60, 108, 24), smallFont, StringAlignment.Far);
         }
 
-        var actionHeaderRect = new Rectangle(292, 112, 276, 40);
+        var actionHeaderRect = new Rectangle(292, 130, 276, 40);
         DrawWindow(g, actionHeaderRect);
         DrawText(g, "こうどう", Rectangle.Inflate(actionHeaderRect, -12, -3), smallFont, StringAlignment.Center, StringAlignment.Center);
 
-        var actionListRect = new Rectangle(292, 152, 276, 92);
+        var actionListRect = new Rectangle(292, 170, 276, 92);
         DrawWindow(g, actionListRect);
         var commandGridRect = Rectangle.Inflate(actionListRect, -16, -10);
         var commandCellWidth = commandGridRect.Width / 2;

@@ -24,11 +24,11 @@ public partial class Form1
             DrawText(g, $"MP {player.CurrentMp}/{player.MaxMp}", new Rectangle(458, 72, 160, 24), smallFont);
             DrawText(g, $"G {player.Gold}", new Rectangle(458, 96, 160, 24), smallFont);
 
-            DrawWindow(g, new Rectangle(446, 132, 186, 124));
+            DrawWindow(g, new Rectangle(446, 132, 186, 148));
             DrawText(g, $"ATK {GetTotalAttack()}  DEF {GetTotalDefense()}", new Rectangle(458, 146, 160, 24), smallFont);
             DrawText(g, $"EXP {GetExperienceSummary()}", new Rectangle(458, 176, 160, 24), smallFont);
-            DrawText(g, "そうび", new Rectangle(458, 206, 160, 24), smallFont);
-            DrawText(g, GetEquippedWeaponName(), new Rectangle(458, 230, 160, 24), smallFont);
+            DrawText(g, $"ぶき {GetEquippedWeaponName()}", new Rectangle(458, 206, 160, 24), smallFont);
+            DrawText(g, $"ぼうぐ {GetEquippedArmorName()}", new Rectangle(458, 234, 160, 24), smallFont);
         }
 
         if (isFieldDialogOpen)
@@ -38,8 +38,8 @@ public partial class Form1
             DrawText(
                 g,
                 activeFieldDialogPageIndex < activeFieldDialogPages.Count - 1
-                    ? (selectedLanguage == UiLanguage.Japanese ? "ENTER: つぎへ" : "ENTER: NEXT")
-                    : (selectedLanguage == UiLanguage.Japanese ? "ENTER / ESC: とじる" : "ENTER / ESC: CLOSE"),
+                    ? (selectedLanguage == UiLanguage.Japanese ? "Z: つぎへ" : "Z: NEXT")
+                    : (selectedLanguage == UiLanguage.Japanese ? "Z / ESC: とじる" : "Z / ESC: CLOSE"),
                 new Rectangle(72, 414, 494, 20),
                 smallFont,
                 StringAlignment.Far);

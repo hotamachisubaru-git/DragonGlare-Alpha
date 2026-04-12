@@ -80,6 +80,8 @@ public sealed class PlayerProgress
 
     public string? EquippedWeaponId { get; set; }
 
+    public string? EquippedArmorId { get; set; }
+
     public List<InventoryEntry> Inventory { get; set; } = [];
 
     public static PlayerProgress CreateDefault(Point startTile, UiLanguage language = UiLanguage.Japanese)
@@ -148,6 +150,11 @@ public sealed class PlayerProgress
             EquippedWeaponId = null;
         }
 
+        if (string.Equals(EquippedArmorId, itemId, StringComparison.Ordinal) && GetItemCount(itemId) == 0)
+        {
+            EquippedArmorId = null;
+        }
+
         return true;
     }
 
@@ -184,6 +191,11 @@ public sealed class PlayerProgress
         if (!string.IsNullOrWhiteSpace(EquippedWeaponId) && GetItemCount(EquippedWeaponId) == 0)
         {
             AddItem(EquippedWeaponId, 1);
+        }
+
+        if (!string.IsNullOrWhiteSpace(EquippedArmorId) && GetItemCount(EquippedArmorId) == 0)
+        {
+            AddItem(EquippedArmorId, 1);
         }
     }
 

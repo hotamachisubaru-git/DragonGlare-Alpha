@@ -24,6 +24,12 @@ public enum ShopPhase
     BuyList
 }
 
+public enum EquipmentSlot
+{
+    Weapon,
+    Armor
+}
+
 public enum UiLanguage
 {
     Japanese,
@@ -54,6 +60,7 @@ public enum SoundEffect
 
 public enum BattleFlowState
 {
+    Intro,
     CommandSelection,
     ItemSelection,
     Resolving,

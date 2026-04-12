@@ -12,8 +12,8 @@ public partial class Form1
         {
             (UiLanguage.Japanese, "fieldHelpLine1") => "やじるし / WASD: いどう",
             (UiLanguage.English, "fieldHelpLine1") => "ARROWS / WASD: MOVE",
-            (UiLanguage.Japanese, "fieldHelpLine2") => "ENTER: はなす・しらべる   X: ステータス",
-            (UiLanguage.English, "fieldHelpLine2") => "ENTER: TALK / CHECK   X: STATUS",
+            (UiLanguage.Japanese, "fieldHelpLine2") => "Z: はなす・しらべる   X: ステータス",
+            (UiLanguage.English, "fieldHelpLine2") => "Z: TALK / CHECK   X: STATUS",
             (UiLanguage.Japanese, "fieldHelpLine3") => currentFieldMap switch
             {
                 FieldMapId.Castle => "B: バトル   V: ショップ   いま: しろ",
@@ -57,7 +57,7 @@ public partial class Form1
         ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
-        shopItemCursor = 0;
+        ResetShopListSelection();
         battleMessage = "まものが あらわれた！";
         shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
         ChangeGameState(GameState.LanguageSelection);
@@ -90,6 +90,7 @@ public partial class Form1
         loadedPlayer.BaseDefense = save.BaseDefense;
         loadedPlayer.Gold = save.Gold;
         loadedPlayer.EquippedWeaponId = save.EquippedWeaponId;
+        loadedPlayer.EquippedArmorId = save.EquippedArmorId;
         loadedPlayer.Inventory = save.Inventory?.Select(entry => entry.Clone()).ToList() ?? [];
         loadedPlayer.Normalize();
 
@@ -113,7 +114,7 @@ public partial class Form1
         ResetEncounterCounter();
         shopPhase = ShopPhase.Welcome;
         shopPromptCursor = 0;
-        shopItemCursor = 0;
+        ResetShopListSelection();
         battleMessage = "まものが あらわれた！";
         shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
         return true;
@@ -155,7 +156,7 @@ public partial class Form1
 
         var save = new SaveData
         {
-            Version = 6,
+            Version = 7,
             SavedAtUtc = DateTime.UtcNow,
             Language = selectedLanguage == UiLanguage.English ? "en" : "ja",
             Name = TrimPlayerName(player.Name),
@@ -173,6 +174,7 @@ public partial class Form1
             BaseDefense = player.BaseDefense,
             Gold = player.Gold,
             EquippedWeaponId = player.EquippedWeaponId,
+            EquippedArmorId = player.EquippedArmorId,
             Inventory = player.Inventory.Select(entry => entry.Clone()).ToList()
         };
 

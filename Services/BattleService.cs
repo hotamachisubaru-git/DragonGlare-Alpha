@@ -10,10 +10,29 @@ public sealed class BattleService
 {
     private const int SpellCost = 2;
 
-    public BattleEncounter CreateEncounter(Random random)
+    public BattleEncounter CreateEncounter(Random random, FieldMapId encounterMap, int playerLevel)
     {
-        var enemy = GameContent.EnemyCatalog[random.Next(GameContent.EnemyCatalog.Length)];
+        var pool = GetEncounterPool(encounterMap, playerLevel);
+        var enemy = SelectEnemyFromPool(random, pool);
         return new BattleEncounter(enemy);
+    }
+
+    public IReadOnlyList<EnemyDefinition> GetEncounterPool(FieldMapId encounterMap, int playerLevel)
+    {
+        var mapPool = GameContent.EnemyCatalog
+            .Where(enemy => enemy.EncounterMap == encounterMap)
+            .ToArray();
+
+        if (mapPool.Length == 0)
+        {
+            return GameContent.EnemyCatalog;
+        }
+
+        var levelPool = mapPool
+            .Where(enemy => playerLevel >= enemy.MinRecommendedLevel && playerLevel <= enemy.MaxRecommendedLevel)
+            .ToArray();
+
+        return levelPool.Length > 0 ? levelPool : mapPool;
     }
 
     public BattleTurnResolution ResolveTurn(
@@ -21,14 +40,15 @@ public sealed class BattleService
         BattleEncounter encounter,
         BattleActionType action,
         WeaponDefinition? equippedWeapon,
+        ArmorDefinition? equippedArmor,
         ConsumableDefinition? selectedConsumable,
         Random random)
     {
         return action switch
         {
-            BattleActionType.Attack => ResolveAttack(player, encounter, equippedWeapon, random),
-            BattleActionType.Spell => ResolveSpell(player, encounter, random),
-            BattleActionType.Item => ResolveItem(player, encounter, selectedConsumable, equippedWeapon, random),
+            BattleActionType.Attack => ResolveAttack(player, encounter, equippedWeapon, equippedArmor, random),
+            BattleActionType.Spell => ResolveSpell(player, encounter, equippedArmor, random),
+            BattleActionType.Item => ResolveItem(player, encounter, selectedConsumable, equippedWeapon, equippedArmor, random),
             BattleActionType.Run => ResolveEscape(),
             _ => Reject("こうどうできない。")
         };
@@ -39,15 +59,16 @@ public sealed class BattleService
         return player.BaseAttack + player.Level + (equippedWeapon?.AttackBonus ?? 0);
     }
 
-    public int GetPlayerDefense(PlayerProgress player)
+    public int GetPlayerDefense(PlayerProgress player, ArmorDefinition? equippedArmor)
     {
-        return player.BaseDefense + Math.Max(0, player.Level / 2);
+        return player.BaseDefense + Math.Max(0, player.Level / 2) + (equippedArmor?.DefenseBonus ?? 0);
     }
 
     private BattleTurnResolution ResolveAttack(
         PlayerProgress player,
         BattleEncounter encounter,
         WeaponDefinition? equippedWeapon,
+        ArmorDefinition? equippedArmor,
         Random random)
     {
         var steps = new List<BattleSequenceStep>
@@ -83,11 +104,15 @@ public sealed class BattleService
             };
         }
 
-        AppendEnemyCounter(player, encounter, steps, random);
+        AppendEnemyCounter(player, encounter, equippedArmor, steps, random);
         return BuildResolution(player, steps);
     }
 
-    private BattleTurnResolution ResolveSpell(PlayerProgress player, BattleEncounter encounter, Random random)
+    private BattleTurnResolution ResolveSpell(
+        PlayerProgress player,
+        BattleEncounter encounter,
+        ArmorDefinition? equippedArmor,
+        Random random)
     {
         if (player.CurrentMp < SpellCost)
         {
@@ -130,7 +155,7 @@ public sealed class BattleService
             };
         }
 
-        AppendEnemyCounter(player, encounter, steps, random);
+        AppendEnemyCounter(player, encounter, equippedArmor, steps, random);
         return BuildResolution(player, steps);
     }
 
@@ -139,6 +164,7 @@ public sealed class BattleService
         BattleEncounter encounter,
         ConsumableDefinition? selectedConsumable,
         WeaponDefinition? equippedWeapon,
+        ArmorDefinition? equippedArmor,
         Random random)
     {
         if (selectedConsumable is null)
@@ -179,7 +205,7 @@ public sealed class BattleService
                     VisualCue = BattleVisualCue.PlayerHeal,
                     AnimationFrames = 12
                 });
-                AppendEnemyCounter(player, encounter, steps, random);
+                AppendEnemyCounter(player, encounter, equippedArmor, steps, random);
                 return BuildResolution(player, steps);
             }
             case ConsumableEffectType.HealMp:
@@ -198,7 +224,7 @@ public sealed class BattleService
                     VisualCue = BattleVisualCue.MpRecover,
                     AnimationFrames = 12
                 });
-                AppendEnemyCounter(player, encounter, steps, random);
+                AppendEnemyCounter(player, encounter, equippedArmor, steps, random);
                 return BuildResolution(player, steps);
             }
             case ConsumableEffectType.DamageEnemy:
@@ -229,7 +255,7 @@ public sealed class BattleService
                     };
                 }
 
-                AppendEnemyCounter(player, encounter, steps, random);
+                AppendEnemyCounter(player, encounter, equippedArmor, steps, random);
                 return BuildResolution(player, steps);
             }
             default:
@@ -257,6 +283,7 @@ public sealed class BattleService
     private void AppendEnemyCounter(
         PlayerProgress player,
         BattleEncounter encounter,
+        ArmorDefinition? equippedArmor,
         List<BattleSequenceStep> steps,
         Random random)
     {
@@ -265,7 +292,7 @@ public sealed class BattleService
             Message = $"{encounter.Enemy.Name}の こうげき！"
         });
 
-        var enemyDamage = Math.Max(1, encounter.Enemy.Attack + random.Next(1, 5) - GetPlayerDefense(player));
+        var enemyDamage = Math.Max(1, encounter.Enemy.Attack + random.Next(1, 5) - GetPlayerDefense(player, equippedArmor));
         player.CurrentHp = Math.Max(0, player.CurrentHp - enemyDamage);
         steps.Add(new BattleSequenceStep
         {
@@ -311,5 +338,26 @@ public sealed class BattleService
     private static string GetPlayerName(PlayerProgress player)
     {
         return string.IsNullOrWhiteSpace(player.Name) ? "ぼうけんしゃ" : player.Name;
+    }
+
+    private static EnemyDefinition SelectEnemyFromPool(Random random, IReadOnlyList<EnemyDefinition> pool)
+    {
+        if (pool.Count == 0)
+        {
+            throw new InvalidOperationException("Encounter pool must contain at least one enemy.");
+        }
+
+        var totalWeight = pool.Sum(enemy => Math.Max(1, enemy.EncounterWeight));
+        var roll = random.Next(totalWeight);
+        foreach (var enemy in pool)
+        {
+            roll -= Math.Max(1, enemy.EncounterWeight);
+            if (roll < 0)
+            {
+                return enemy;
+            }
+        }
+
+        return pool[^1];
     }
 }

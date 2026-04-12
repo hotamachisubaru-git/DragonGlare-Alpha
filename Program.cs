@@ -1,4 +1,5 @@
 using DragonGlareAlpha.Security;
+using DragonGlareAlpha.Domain.Startup;
 using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
@@ -11,6 +12,8 @@ static class Program
     [STAThread]
     static void Main()
     {
+        ApplicationConfiguration.Initialize();
+
         var platformSupportService = new PlatformSupportService();
         if (platformSupportService.TryDetectUnsupportedPlatform(out var platformMessage))
         {
@@ -24,9 +27,21 @@ static class Program
             return;
         }
 
-        // To customize application configuration such as set high DPI settings or default font,
-        // see https://aka.ms/applicationconfiguration.
-        ApplicationConfiguration.Initialize();
-        Application.Run(new Form1());
+        var launchSettingsService = new LaunchSettingsService();
+        var launchSettings = launchSettingsService.Load();
+
+        if (launchSettings.PromptOnStartup)
+        {
+            using var launchOptionsDialog = new LaunchOptionsDialog(launchSettings);
+            if (launchOptionsDialog.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+
+            launchSettings = launchOptionsDialog.SelectedSettings;
+            launchSettingsService.Save(launchSettings);
+        }
+
+        Application.Run(new Form1(launchSettings));
     }
 }

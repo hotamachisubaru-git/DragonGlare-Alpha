@@ -6,6 +6,7 @@ using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Battle;
 using DragonGlareAlpha.Domain.Field;
 using DragonGlareAlpha.Domain.Player;
+using DragonGlareAlpha.Domain.Startup;
 using DragonGlareAlpha.Persistence;
 using DragonGlareAlpha.Security;
 using DragonGlareAlpha.Services;
@@ -16,6 +17,7 @@ namespace DragonGlareAlpha;
 public partial class Form1 : Form
 {
     private const int TileSize = 32;
+    private const int ShopItemsPerPage = 6;
     private const int CompactFieldViewportWidthTiles = 13;
     private const int ExpandedFieldViewportWidthTiles = 17;
     private const int CompactFieldViewportHeightTiles = 9;
@@ -46,6 +48,7 @@ public partial class Form1 : Form
     private readonly ProgressionService progressionService = new();
     private readonly ShopService shopService = new();
     private readonly FieldEventService fieldEventService = new();
+    private readonly LaunchSettings launchSettings;
 
     private Font uiFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
     private Font smallFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
@@ -75,6 +78,7 @@ public partial class Form1 : Form
     private BattleFlowState battleFlowState = BattleFlowState.CommandSelection;
     private int shopPromptCursor;
     private int shopItemCursor;
+    private int shopPageIndex;
     private ShopPhase shopPhase = ShopPhase.Welcome;
     private SaveSlotSelectionMode saveSlotSelectionMode = SaveSlotSelectionMode.Save;
     private string battleMessage = "まものが あらわれた！";
@@ -91,10 +95,21 @@ public partial class Form1 : Form
     private int activeFieldDialogPageIndex;
     private IReadOnlyList<SaveSlotSummary> saveSlotSummaries = [];
 
+    private enum ShopMenuEntryType
+    {
+        Item,
+        PreviousPage,
+        NextPage,
+        Quit
+    }
+
+    private readonly record struct ShopMenuEntry(ShopMenuEntryType Type, string Label, IEquipmentDefinition? Item = null);
+
     private string LegacySaveFilePath => Path.Combine(AppContext.BaseDirectory, "savegame.json");
 
-    public Form1()
+    public Form1(LaunchSettings? launchSettings = null)
     {
+        this.launchSettings = launchSettings ?? new LaunchSettings();
         InitializeComponent();
         ConfigureWindow();
         LoadCustomFont();
@@ -131,17 +146,17 @@ public partial class Form1 : Form
         {
             base.OnPaint(e);
 
-            e.Graphics.Clear(Color.Black);
-            e.Graphics.SmoothingMode = SmoothingMode.None;
-            e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
-            e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-            e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-
             var scale = Math.Min((float)ClientSize.Width / UiCanvas.VirtualWidth, (float)ClientSize.Height / UiCanvas.VirtualHeight);
             var drawWidth = UiCanvas.VirtualWidth * scale;
             var drawHeight = UiCanvas.VirtualHeight * scale;
             var offsetX = (ClientSize.Width - drawWidth) / 2f;
             var offsetY = (ClientSize.Height - drawHeight) / 2f;
+
+            e.Graphics.SmoothingMode = SmoothingMode.None;
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+            e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+            e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+            DrawBackdrop(e.Graphics, ClientRectangle, scale);
 
             e.Graphics.TranslateTransform(offsetX, offsetY);
             e.Graphics.ScaleTransform(scale, scale);
@@ -196,14 +211,11 @@ public partial class Form1 : Form
     private void ConfigureWindow()
     {
         Text = $"DragonGlare Alpha v{Application.ProductVersion}";
-        ClientSize = UiCanvas.WindowClientSize;
-        StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.Black;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
         ShowIcon = true;
         KeyPreview = true;
         DoubleBuffered = true;
+        ApplyDisplayMode();
 
         try
         {
@@ -216,6 +228,58 @@ public partial class Form1 : Form
         catch
         {
         }
+    }
+
+    private void ApplyDisplayMode()
+    {
+        var activeScreen = Screen.FromPoint(Cursor.Position);
+        if (launchSettings.DisplayMode == LaunchDisplayMode.Fullscreen)
+        {
+            StartPosition = FormStartPosition.Manual;
+            FormBorderStyle = FormBorderStyle.None;
+            MaximizeBox = false;
+            Bounds = activeScreen.Bounds;
+            return;
+        }
+
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
+        StartPosition = FormStartPosition.Manual;
+        var workingArea = activeScreen.WorkingArea;
+        ClientSize = ConstrainWindowedClientSize(GetWindowedClientSize(launchSettings.DisplayMode), workingArea);
+
+        Location = new Point(
+            workingArea.X + Math.Max(0, (workingArea.Width - Width) / 2),
+            workingArea.Y + Math.Max(0, (workingArea.Height - Height) / 2));
+    }
+
+    private static Size GetWindowedClientSize(LaunchDisplayMode displayMode)
+    {
+        return displayMode switch
+        {
+            LaunchDisplayMode.Window720p => new Size(1280, 720),
+            LaunchDisplayMode.Window1080p => new Size(1920, 1080),
+            _ => new Size(640, 480)
+        };
+    }
+
+    private Size ConstrainWindowedClientSize(Size desiredClientSize, Rectangle workingArea)
+    {
+        var desiredWindowSize = SizeFromClientSize(desiredClientSize);
+        if (desiredWindowSize.Width <= workingArea.Width && desiredWindowSize.Height <= workingArea.Height)
+        {
+            return desiredClientSize;
+        }
+
+        var scale = Math.Min(
+            workingArea.Width / (float)desiredWindowSize.Width,
+            workingArea.Height / (float)desiredWindowSize.Height);
+
+        var scaledClientSize = new Size(
+            Math.Max(UiCanvas.VirtualWidth, (int)Math.Floor(desiredClientSize.Width * scale)),
+            Math.Max(UiCanvas.VirtualHeight, (int)Math.Floor(desiredClientSize.Height * scale)));
+
+        return scaledClientSize;
     }
 
     private void CleanupResources()

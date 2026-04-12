@@ -1,3 +1,5 @@
+using DragonGlareAlpha.Data;
+using DragonGlareAlpha.Domain.Battle;
 using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Player;
 
@@ -14,12 +16,12 @@ public sealed class ProgressionService
         return player;
     }
 
-    public string ApplyBattleRewards(PlayerProgress player, int experienceReward, int goldReward, Random random)
+    public string ApplyBattleRewards(PlayerProgress player, EnemyDefinition enemy, Random random)
     {
         var previousExperience = player.Experience;
         var previousGold = player.Gold;
-        player.Experience = Math.Min(MaxLevelExperience, player.Experience + experienceReward);
-        player.Gold = Math.Min(PlayerProgress.MaxGoldValue, player.Gold + goldReward);
+        player.Experience = Math.Min(MaxLevelExperience, player.Experience + enemy.ExperienceReward);
+        player.Gold = Math.Min(PlayerProgress.MaxGoldValue, player.Gold + enemy.GoldReward);
         var gainedExperience = player.Experience - previousExperience;
         var gainedGold = player.Gold - previousGold;
 
@@ -27,6 +29,11 @@ public sealed class ProgressionService
         {
             $"{gainedExperience}けいけんち と {gainedGold}Gを えた！"
         };
+
+        if (TryAwardBattleDrop(player, enemy, random, out var dropMessage))
+        {
+            messages.Add(dropMessage);
+        }
 
         while (player.Level < PlayerProgress.MaxLevelValue && player.Experience >= GetExperienceThreshold(player.Level + 1))
         {
@@ -132,5 +139,33 @@ public sealed class ProgressionService
         {
             player.AddItem("fire_orb", 1);
         }
+    }
+
+    private static bool TryAwardBattleDrop(PlayerProgress player, EnemyDefinition enemy, Random random, out string dropMessage)
+    {
+        dropMessage = string.Empty;
+        if (enemy.Drop is null ||
+            string.IsNullOrWhiteSpace(enemy.Drop.ItemId) ||
+            enemy.Drop.Quantity <= 0 ||
+            enemy.Drop.ChancePercent <= 0)
+        {
+            return false;
+        }
+
+        if (random.Next(100) >= enemy.Drop.ChancePercent)
+        {
+            return false;
+        }
+
+        player.AddItem(enemy.Drop.ItemId, enemy.Drop.Quantity);
+        var itemName = GameContent.GetConsumableById(enemy.Drop.ItemId)?.Name
+            ?? GameContent.GetWeaponById(enemy.Drop.ItemId)?.Name
+            ?? GameContent.GetArmorById(enemy.Drop.ItemId)?.Name
+            ?? enemy.Drop.ItemId;
+
+        dropMessage = enemy.Drop.Quantity > 1
+            ? $"{enemy.Name}は {itemName} x{enemy.Drop.Quantity}を おとした！"
+            : $"{enemy.Name}は {itemName}を おとした！";
+        return true;
     }
 }

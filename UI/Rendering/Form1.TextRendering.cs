@@ -214,25 +214,36 @@ public partial class Form1
         g.DrawString(text, font, brush, x, y, TextDrawFormat);
     }
 
-    private void DrawMenuBackdrop(Graphics g)
+    private static void DrawBackdrop(Graphics g, Rectangle bounds, float scale = 1f)
     {
+        var safeBounds = bounds.Width <= 0 || bounds.Height <= 0
+            ? new Rectangle(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height))
+            : bounds;
+        var scanlineStep = Math.Max(4, (int)Math.Round(4f * scale));
+        var sideGlowWidth = Math.Max(18, (int)Math.Round(18f * scale));
+
         using var gradient = new LinearGradientBrush(
-            new Rectangle(0, 0, UiCanvas.VirtualWidth, UiCanvas.VirtualHeight),
+            safeBounds,
             Color.Black,
             Color.FromArgb(0, 10, 22),
             90f);
         using var scanlinePen = new Pen(Color.FromArgb(24, 38, 80));
         using var sideGlowBrush = new SolidBrush(Color.FromArgb(14, 0, 80, 255));
 
-        g.FillRectangle(gradient, 0, 0, UiCanvas.VirtualWidth, UiCanvas.VirtualHeight);
+        g.FillRectangle(gradient, safeBounds);
 
-        for (var y = 0; y < UiCanvas.VirtualHeight; y += 4)
+        for (var y = safeBounds.Top; y < safeBounds.Bottom; y += scanlineStep)
         {
-            g.DrawLine(scanlinePen, 0, y, UiCanvas.VirtualWidth, y);
+            g.DrawLine(scanlinePen, safeBounds.Left, y, safeBounds.Right, y);
         }
 
-        g.FillRectangle(sideGlowBrush, 0, 0, 18, UiCanvas.VirtualHeight);
-        g.FillRectangle(sideGlowBrush, UiCanvas.VirtualWidth - 18, 0, 18, UiCanvas.VirtualHeight);
+        g.FillRectangle(sideGlowBrush, safeBounds.Left, safeBounds.Top, sideGlowWidth, safeBounds.Height);
+        g.FillRectangle(sideGlowBrush, safeBounds.Right - sideGlowWidth, safeBounds.Top, sideGlowWidth, safeBounds.Height);
+    }
+
+    private void DrawMenuBackdrop(Graphics g)
+    {
+        DrawBackdrop(g, new Rectangle(0, 0, UiCanvas.VirtualWidth, UiCanvas.VirtualHeight));
     }
 
     private void DrawTitleText(Graphics g, string text, int x, int y)

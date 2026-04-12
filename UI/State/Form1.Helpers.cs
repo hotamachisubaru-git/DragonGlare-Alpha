@@ -257,6 +257,11 @@ public partial class Form1
         return GameContent.GetWeaponById(player.EquippedWeaponId);
     }
 
+    private ArmorDefinition? GetEquippedArmor()
+    {
+        return GameContent.GetArmorById(player.EquippedArmorId);
+    }
+
     private string GetDisplayPlayerName()
     {
         if (!string.IsNullOrWhiteSpace(player.Name))
@@ -272,6 +277,45 @@ public partial class Form1
         return GetEquippedWeapon()?.Name ?? "なし";
     }
 
+    private string GetEquippedArmorName()
+    {
+        return GetEquippedArmor()?.Name ?? "なし";
+    }
+
+    private int GetShopPageCount()
+    {
+        return Math.Max(1, (GameContent.ShopCatalog.Length + ShopItemsPerPage - 1) / ShopItemsPerPage);
+    }
+
+    private IReadOnlyList<ShopMenuEntry> GetShopVisibleEntries()
+    {
+        var pageStartIndex = shopPageIndex * ShopItemsPerPage;
+        var entries = GameContent.ShopCatalog
+            .Skip(pageStartIndex)
+            .Take(ShopItemsPerPage)
+            .Select(item => new ShopMenuEntry(ShopMenuEntryType.Item, item.Name, item))
+            .ToList();
+
+        if (shopPageIndex > 0)
+        {
+            entries.Add(new ShopMenuEntry(ShopMenuEntryType.PreviousPage, "まえへ"));
+        }
+
+        if (shopPageIndex + 1 < GetShopPageCount())
+        {
+            entries.Add(new ShopMenuEntry(ShopMenuEntryType.NextPage, "つぎへ"));
+        }
+
+        entries.Add(new ShopMenuEntry(ShopMenuEntryType.Quit, "やめる"));
+        return entries;
+    }
+
+    private void ResetShopListSelection(int pageIndex = 0)
+    {
+        shopPageIndex = Math.Clamp(pageIndex, 0, Math.Max(0, GetShopPageCount() - 1));
+        shopItemCursor = 0;
+    }
+
     private int GetTotalAttack()
     {
         return battleService.GetPlayerAttack(player, GetEquippedWeapon());
@@ -279,7 +323,7 @@ public partial class Form1
 
     private int GetTotalDefense()
     {
-        return battleService.GetPlayerDefense(player);
+        return battleService.GetPlayerDefense(player, GetEquippedArmor());
     }
 
     private string GetExperienceSummary()
@@ -322,5 +366,20 @@ public partial class Form1
             FieldMapId.Field => "FIELD",
             _ => "HUB"
         };
+    }
+
+    private string GetBattleEncounterMessage(string enemyName)
+    {
+        return selectedLanguage == UiLanguage.English
+            ? $"{enemyName} appears!"
+            : $"{enemyName}が あらわれた！";
+    }
+
+    private string GetBattleCommandPromptMessage()
+    {
+        var playerName = GetDisplayPlayerName();
+        return selectedLanguage == UiLanguage.English
+            ? $"What will {playerName} do?"
+            : $"{playerName}は どうする？";
     }
 }

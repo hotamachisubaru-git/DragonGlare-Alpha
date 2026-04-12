@@ -99,6 +99,21 @@ public partial class Form1
         return WasPressed(Keys.Enter) || WasPressed(Keys.Z) || WasPressed(Keys.X);
     }
 
+    private bool WasShopConfirmPressed()
+    {
+        return WasPressed(Keys.Enter) || WasPressed(Keys.Z);
+    }
+
+    private bool WasShopBackPressed()
+    {
+        return WasPressed(Keys.Escape) || WasPressed(Keys.X);
+    }
+
+    private bool WasFieldInteractPressed()
+    {
+        return WasPressed(Keys.Enter) || WasPressed(Keys.Z);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (!heldKeys.Contains(e.KeyCode))

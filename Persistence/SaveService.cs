@@ -11,8 +11,10 @@ public sealed class SaveService
 {
     public const int SlotCount = 3;
 
-    private const int CurrentSaveVersion = 6;
+    private const int CurrentSaveVersion = 7;
     private const int SignedSaveVersion = 5;
+    private const int SlotBoundSignatureVersion = 6;
+    private const int ArmorEquipmentVersion = 7;
     private const string SignatureSecret = "DragonGlareAlpha::SaveSeal::2026-04-09";
     private const string DpapiEntropySecret = "DragonGlareAlpha::Dpapi::2026-04-09";
 
@@ -278,7 +280,7 @@ public sealed class SaveService
         writer.WriteString("SavedAtUtc", NormalizeUtc(saveData.SavedAtUtc));
         writer.WriteString("Language", saveData.Language ?? string.Empty);
         writer.WriteString("Name", saveData.Name ?? string.Empty);
-        if (effectiveVersion >= CurrentSaveVersion)
+        if (effectiveVersion >= SlotBoundSignatureVersion)
         {
             writer.WriteNumber("SlotNumber", saveData.SlotNumber);
         }
@@ -296,6 +298,11 @@ public sealed class SaveService
         writer.WriteNumber("BaseDefense", saveData.BaseDefense);
         writer.WriteNumber("Gold", saveData.Gold);
         writer.WriteString("EquippedWeaponId", saveData.EquippedWeaponId ?? string.Empty);
+        if (effectiveVersion >= ArmorEquipmentVersion)
+        {
+            writer.WriteString("EquippedArmorId", saveData.EquippedArmorId ?? string.Empty);
+        }
+
         writer.WritePropertyName("Inventory");
         writer.WriteStartArray();
         foreach (var entry in saveData.Inventory ?? [])

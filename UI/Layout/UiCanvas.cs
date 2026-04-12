@@ -4,8 +4,8 @@ namespace DragonGlareAlpha;
 
 internal static class UiCanvas
 {
-    public const int VirtualWidth = 1280;
-    public const int VirtualHeight = 720;
+    public const int VirtualWidth = 640;
+    public const int VirtualHeight = 480;
     public const int WindowClientWidth = VirtualWidth;
     public const int WindowClientHeight = VirtualHeight;
 
