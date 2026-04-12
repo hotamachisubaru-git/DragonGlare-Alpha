@@ -36,8 +36,6 @@ public static class GameContent
         { BattleActionType.Attack, BattleActionType.Spell },
         { BattleActionType.Item, BattleActionType.Run }
     };
-
-　
     public static readonly WeaponDefinition[] WeaponCatalog =
     [
         new("stick", "ぼう", 16, 2),
@@ -107,6 +105,14 @@ public static class GameContent
         new("healing_herb", "やくそう", "HPを 12かいふく", ConsumableEffectType.HealHp, 12),
         new("mana_seed", "まりょくのたね", "MPを 3かいふく", ConsumableEffectType.HealMp, 3),
         new("fire_orb", "ひのたま", "てきに 18ダメージ", ConsumableEffectType.DamageEnemy, 18)
+    ];
+
+    public static readonly FieldTransitionDefinition[] FieldTransitions =
+    [
+        new(FieldMapId.Hub, new Rectangle(9, 0, 2, 1), FieldMapId.Castle, new Point(9, 12)),
+        new(FieldMapId.Hub, new Rectangle(19, 7, 1, 2), FieldMapId.Field, new Point(2, 7)),
+        new(FieldMapId.Castle, new Rectangle(9, 14, 2, 1), FieldMapId.Hub, new Point(9, 2)),
+        new(FieldMapId.Field, new Rectangle(0, 7, 1, 2), FieldMapId.Hub, new Point(15, 7))
     ];
 
     public static readonly FieldEventDefinition[] FieldEvents =
@@ -253,9 +259,4 @@ public static class GameContent
 
         return FieldEvents.FirstOrDefault(fieldEvent => string.Equals(fieldEvent.Id, eventId, StringComparison.Ordinal));
     }
-
-    public class DefendDefinition
-    {
-    }
-
 }

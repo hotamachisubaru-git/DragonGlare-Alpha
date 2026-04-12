@@ -48,12 +48,13 @@ public partial class Form1
         bgmPlayer.Volume = 0.45;
         sePlayer.Volume = 0.9;
         bgmPlayer.MediaEnded += (_, _) => RestartCurrentBgm();
+        bgmPlayer.MediaFailed += (_, _) => currentBgmTrack = null;
 
         RegisterBgm(BgmTrack.MainMenu, "main_menu", "glare");
         RegisterBgm(BgmTrack.Field, "field");
         RegisterBgm(BgmTrack.Castle, "castle");
         RegisterBgm(BgmTrack.Battle, "battle");
-        RegisterBgm(BgmTrack.Shop, "shop_buy", "field");
+        RegisterBgm(BgmTrack.Shop, "shop_buy", "shop", "ショップ", "ショップのシーン", "(ショップのシーン)", "(ショップのシーン）", "field");
 
         RegisterSe(SoundEffect.Dialog, "Serif_SE.mp3");
         RegisterSe(SoundEffect.Collision, "当たり判定SFC.mp3", "当たり判定SFC.wav");
@@ -63,14 +64,14 @@ public partial class Form1
 
     private void RegisterBgm(BgmTrack track, string sceneName, params string[] fallbackSceneNames)
     {
-        var fileNames = new string[1 + fallbackSceneNames.Length];
-        fileNames[0] = GetBgmFileName(sceneName);
+        var sceneNames = new string[1 + fallbackSceneNames.Length];
+        sceneNames[0] = sceneName;
         for (var index = 0; index < fallbackSceneNames.Length; index++)
         {
-            fileNames[index + 1] = GetBgmFileName(fallbackSceneNames[index]);
+            sceneNames[index + 1] = fallbackSceneNames[index];
         }
 
-        var path = ResolveAssetPath("BGM", fileNames);
+        var path = ResolveBgmPath(sceneNames);
         if (path is not null)
         {
             bgmUris[track] = new Uri(path, UriKind.Absolute);
@@ -89,6 +90,82 @@ public partial class Form1
     private static string GetBgmFileName(string sceneName)
     {
         return $"SFC_{sceneName}.mp3";
+    }
+
+    private static string? ResolveBgmPath(params string[] sceneNames)
+    {
+        foreach (var sceneName in sceneNames)
+        {
+            var path = ResolveAssetPath("BGM", BuildBgmCandidateNames(sceneName).ToArray());
+            if (path is not null)
+            {
+                return path;
+            }
+        }
+
+        var bgmDirectory = ResolveAssetDirectory("BGM");
+        if (bgmDirectory is null)
+        {
+            return null;
+        }
+
+        var audioFiles = Directory.EnumerateFiles(bgmDirectory)
+            .Where(path => path.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
+                           path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (var sceneName in sceneNames)
+        {
+            var token = NormalizeAssetLookupToken(sceneName);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                continue;
+            }
+
+            var match = audioFiles.FirstOrDefault(path =>
+            {
+                var fileToken = NormalizeAssetLookupToken(Path.GetFileNameWithoutExtension(path));
+                return fileToken.Contains(token, StringComparison.Ordinal) || token.Contains(fileToken, StringComparison.Ordinal);
+            });
+
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> BuildBgmCandidateNames(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName))
+        {
+            yield break;
+        }
+
+        if (Path.HasExtension(sceneName))
+        {
+            yield return sceneName;
+            yield break;
+        }
+
+        if (sceneName.StartsWith("SFC_", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return $"{sceneName}.mp3";
+            yield return $"{sceneName}.wav";
+            yield break;
+        }
+
+        yield return GetBgmFileName(sceneName);
+        yield return $"SFC_{sceneName}.wav";
+        yield return $"{sceneName}.mp3";
+        yield return $"{sceneName}.wav";
+    }
+
+    private static string NormalizeAssetLookupToken(string value)
+    {
+        return string.Concat(value.Where(char.IsLetterOrDigit)).ToLowerInvariant();
     }
 
     private static string? ResolveAssetPath(string? assetSubdirectory, params string[] fileNames)
@@ -133,6 +210,45 @@ public partial class Form1
         return null;
     }
 
+    private static string? ResolveAssetDirectory(string? assetSubdirectory)
+    {
+        var relativeCandidates = assetSubdirectory is null
+            ? new[]
+            {
+                "アセット",
+                "Assets",
+                Path.Combine("Assets", "Audio")
+            }
+            : new[]
+            {
+                "アセット",
+                Path.Combine("Assets", assetSubdirectory),
+                "Assets",
+                Path.Combine("Assets", "Audio")
+            };
+
+        foreach (var relativePath in relativeCandidates)
+        {
+            var roots = new[]
+            {
+                AppContext.BaseDirectory,
+                Path.Combine(AppContext.BaseDirectory, "..", "..", ".."),
+                Directory.GetCurrentDirectory()
+            };
+
+            foreach (var root in roots)
+            {
+                var normalized = Path.GetFullPath(Path.Combine(root, relativePath));
+                if (Directory.Exists(normalized))
+                {
+                    return normalized;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private void UpdateBgm()
     {
         var desiredTrack = GetDesiredBgmTrack();
@@ -151,6 +267,8 @@ public partial class Form1
         }
 
         currentBgmTrack = desiredTrack;
+        bgmPlayer.Stop();
+        bgmPlayer.Close();
         bgmPlayer.Open(trackUri);
         bgmPlayer.Position = TimeSpan.Zero;
         bgmPlayer.Play();

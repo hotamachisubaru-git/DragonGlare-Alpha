@@ -5,7 +5,9 @@ namespace DragonGlareAlpha.Persistence;
 
 public sealed class SaveData
 {
-    public int Version { get; set; } = 7;
+    public const int CurrentVersion = 7;
+
+    public int Version { get; set; } = CurrentVersion;
 
     public DateTime SavedAtUtc { get; set; } = DateTime.UtcNow;
 

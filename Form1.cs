@@ -26,10 +26,6 @@ public partial class Form1 : Form
     private const int FieldMovementAnimationDuration = 6;
     private const int EncounterTransitionDuration = 26;
     private static readonly Point PlayerStartTile = new(3, 12);
-    private static readonly Point HubFromCastleTile = new(9, 2);
-    private static readonly Point CastleEntryTile = new(9, 12);
-    private static readonly Point HubFromFieldTile = new(15, 7);
-    private static readonly Point FieldEntryTile = new(2, 7);
     private static readonly TimeSpan BgmLoopLeadTime = TimeSpan.FromMilliseconds(120);
 
     private readonly Timer gameTimer = new() { Interval = 16 };
@@ -41,6 +37,8 @@ public partial class Form1 : Form
     private readonly System.Windows.Media.MediaPlayer sePlayer = new();
     private readonly Dictionary<BgmTrack, Uri> bgmUris = [];
     private readonly Dictionary<SoundEffect, Uri> seUris = [];
+    private readonly Dictionary<string, Image> npcSprites = [];
+    private readonly Dictionary<PlayerFacingDirection, Image> heroSprites = [];
     private readonly Random random = new();
     private readonly SaveService saveService = new();
     private readonly AntiCheatService antiCheatService = new();
@@ -48,11 +46,11 @@ public partial class Form1 : Form
     private readonly ProgressionService progressionService = new();
     private readonly ShopService shopService = new();
     private readonly FieldEventService fieldEventService = new();
+    private readonly FieldTransitionService fieldTransitionService = new();
     private readonly LaunchSettings launchSettings;
 
     private Font uiFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
     private Font smallFont = new(UiTypography.DefaultFontFamilyName, UiTypography.FontPixelSize, GraphicsUnit.Pixel);
-
     private PlayerProgress player = PlayerProgress.CreateDefault(PlayerStartTile);
     private BattleEncounter? currentEncounter;
     private GameState gameState = GameState.ModeSelect;
@@ -71,6 +69,7 @@ public partial class Form1 : Form
     private bool fontLoaded;
     private int frameCounter;
     private int startupFadeFrames = 20;
+    private PlayerFacingDirection playerFacingDirection = PlayerFacingDirection.Down;
     private Point fieldMovementAnimationDirection = Point.Empty;
     private int fieldMovementAnimationFramesRemaining;
     private int battleCursorRow;
@@ -81,8 +80,8 @@ public partial class Form1 : Form
     private int shopPageIndex;
     private ShopPhase shopPhase = ShopPhase.Welcome;
     private SaveSlotSelectionMode saveSlotSelectionMode = SaveSlotSelectionMode.Save;
-    private string battleMessage = "まものが あらわれた！";
-    private string shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
+    private string battleMessage = DefaultBattleMessage;
+    private string shopMessage = ShopWelcomeMessage;
     private BgmTrack? currentBgmTrack;
     private string menuNotice = string.Empty;
     private int menuNoticeFrames;
@@ -103,6 +102,14 @@ public partial class Form1 : Form
         Quit
     }
 
+    private enum PlayerFacingDirection
+    {
+        Left,
+        Right,
+        Up,
+        Down
+    }
+
     private readonly record struct ShopMenuEntry(ShopMenuEntryType Type, string Label, IEquipmentDefinition? Item = null);
 
     private string LegacySaveFilePath => Path.Combine(AppContext.BaseDirectory, "savegame.json");
@@ -114,6 +121,7 @@ public partial class Form1 : Form
         ConfigureWindow();
         LoadCustomFont();
         InitializeAudio();
+        LoadFieldSprites();
         saveService.TryMigrateLegacySave(LegacySaveFilePath);
         RefreshSaveSlotSummaries();
 
@@ -304,6 +312,7 @@ public partial class Form1 : Form
         uiFont.Dispose();
         smallFont.Dispose();
         privateFontCollection.Dispose();
+        DisposeFieldSprites();
     }
 
     private void HandleSecurityViolation(string message)

@@ -32,7 +32,7 @@ public static class MapFactory
     {
         var map = CreateBoundedMap();
 
-        PaintArea(map, 9, 0, 10, 1, CastleGateTile);
+        PaintArea(map, 9, 0, 10, 0, CastleGateTile);
         PaintArea(map, 19, 7, 19, 8, FieldGateTile);
 
         for (var x = 4; x <= 15; x++)

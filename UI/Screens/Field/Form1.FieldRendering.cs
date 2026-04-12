@@ -51,12 +51,12 @@ public partial class Form1
         DrawMenuBackdrop(g);
 
         var viewport = GetFieldViewport();
-        var centerTileRect = GetCenteredFieldTileRectangle(viewport);
-        var animationOffset = GetFieldMovementAnimationOffset();
+        var cameraOrigin = GetFieldCameraOrigin();
+        var movementOffset = GetFieldMovementAnimationOffset();
+        var cameraAnimationOffset = GetFieldCameraAnimationOffset(cameraOrigin, movementOffset);
+        var playerAnimationOffset = GetPlayerAnimationOffset(cameraOrigin, movementOffset);
         var visibleWidthTiles = GetFieldViewportWidthTiles();
         var visibleHeightTiles = GetFieldViewportHeightTiles();
-        var halfWidth = visibleWidthTiles / 2;
-        var halfHeight = visibleHeightTiles / 2;
 
         var clipState = g.Save();
         g.SetClip(viewport);
@@ -66,16 +66,12 @@ public partial class Form1
             g.FillRectangle(voidBrush, viewport);
         }
 
-        for (var y = -halfHeight; y <= halfHeight; y++)
+        for (var y = 0; y < visibleHeightTiles; y++)
         {
-            for (var x = -halfWidth; x <= halfWidth; x++)
+            for (var x = 0; x < visibleWidthTiles; x++)
             {
-                var worldTile = new Point(player.TilePosition.X + x, player.TilePosition.Y + y);
-                var tileRect = new Rectangle(
-                    centerTileRect.X + (x * TileSize) + animationOffset.X,
-                    centerTileRect.Y + (y * TileSize) + animationOffset.Y,
-                    TileSize,
-                    TileSize);
+                var worldTile = new Point(cameraOrigin.X + x, cameraOrigin.Y + y);
+                var tileRect = GetFieldTileRectangle(viewport, cameraOrigin, worldTile, cameraAnimationOffset);
                 using var tileBrush = new SolidBrush(GetTileColor(GetTileIdAtWorldPosition(worldTile)));
                 g.FillRectangle(tileBrush, tileRect);
             }
@@ -83,12 +79,14 @@ public partial class Form1
 
         foreach (var fieldEvent in GetCurrentFieldEvents())
         {
-            DrawWorldTileEntity(g, fieldEvent.TilePosition, viewport, animationOffset, fieldEvent.DisplayColor);
+            var sprite = GetNpcSprite(fieldEvent.SpriteAssetName);
+            DrawWorldTileEntity(g, fieldEvent.TilePosition, viewport, cameraOrigin, cameraAnimationOffset, fieldEvent.DisplayColor, sprite);
         }
+
+        DrawPlayerTileEntity(g, viewport, cameraOrigin, playerAnimationOffset);
 
         g.Restore(clipState);
         DrawFieldViewportFrame(g, viewport);
-        DrawCenteredTileEntity(g, viewport, Color.White);
     }
 
     private Color GetTileColor(int tileId)
@@ -108,23 +106,49 @@ public partial class Form1
         };
     }
 
-    private void DrawWorldTileEntity(Graphics g, Point tile, Rectangle viewport, Point animationOffset, Color color)
+    private void DrawWorldTileEntity(
+        Graphics g,
+        Point tile,
+        Rectangle viewport,
+        Point cameraOrigin,
+        Point offset,
+        Color color,
+        Image? sprite = null)
     {
-        var centerTileRect = GetCenteredFieldTileRectangle(viewport);
-        var rect = new Rectangle(
-            centerTileRect.X + ((tile.X - player.TilePosition.X) * TileSize) + animationOffset.X + 4,
-            centerTileRect.Y + ((tile.Y - player.TilePosition.Y) * TileSize) + animationOffset.Y + 4,
-            TileSize - 8,
-            TileSize - 8);
+        var rect = Rectangle.Inflate(
+            GetFieldTileRectangle(viewport, cameraOrigin, tile, offset),
+            -4,
+            -4);
+
+        if (sprite is not null)
+        {
+            g.DrawImage(sprite, rect);
+            return;
+        }
+
         using var brush = new SolidBrush(color);
         g.FillRectangle(brush, rect);
     }
 
-    private void DrawCenteredTileEntity(Graphics g, Rectangle viewport, Color color)
+    private void DrawPlayerTileEntity(Graphics g, Rectangle viewport, Point cameraOrigin, Point animationOffset)
     {
-        var rect = Rectangle.Inflate(GetCenteredFieldTileRectangle(viewport), -4, -4);
-        using var brush = new SolidBrush(color);
-        g.FillRectangle(brush, rect);
+        var tileRect = GetFieldTileRectangle(viewport, cameraOrigin, player.TilePosition, new Point(-animationOffset.X, -animationOffset.Y));
+        var heroSprite = GetHeroSprite();
+
+        if (heroSprite is not null)
+        {
+            var rect = new Rectangle(
+                tileRect.X + ((TileSize - heroSprite.Width) / 2),
+                tileRect.Bottom - heroSprite.Height,
+                heroSprite.Width,
+                heroSprite.Height);
+            g.DrawImage(heroSprite, rect);
+            return;
+        }
+
+        var fallbackRect = Rectangle.Inflate(tileRect, -2, -2);
+        using var brush = new SolidBrush(Color.White);
+        g.FillRectangle(brush, fallbackRect);
     }
 
     private void DrawFieldViewportFrame(Graphics g, Rectangle rect)

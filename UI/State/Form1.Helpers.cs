@@ -9,14 +9,24 @@ namespace DragonGlareAlpha;
 
 public partial class Form1
 {
+    private IEnumerable<FieldEventDefinition> GetFieldEvents(FieldMapId mapId)
+    {
+        return GameContent.FieldEvents.Where(fieldEvent => fieldEvent.MapId == mapId);
+    }
+
     private IEnumerable<FieldEventDefinition> GetCurrentFieldEvents()
     {
-        return GameContent.FieldEvents.Where(fieldEvent => fieldEvent.MapId == currentFieldMap);
+        return GetFieldEvents(currentFieldMap);
     }
 
     private bool IsBlockedByFieldEvent(Point tile)
     {
-        return GetCurrentFieldEvents().Any(fieldEvent => fieldEvent.BlocksMovement && fieldEvent.TilePosition == tile);
+        return IsBlockedByFieldEvent(currentFieldMap, tile);
+    }
+
+    private bool IsBlockedByFieldEvent(FieldMapId mapId, Point tile)
+    {
+        return GetFieldEvents(mapId).Any(fieldEvent => fieldEvent.BlocksMovement && fieldEvent.TilePosition == tile);
     }
 
     private FieldEventDefinition? GetInteractableFieldEvent()
@@ -161,13 +171,40 @@ public partial class Form1
             : FieldLayout.ExpandedHelpWindow;
     }
 
-    private Rectangle GetCenteredFieldTileRectangle(Rectangle viewport)
+    private Point GetFieldCameraOrigin()
     {
-        return new Rectangle(
-            viewport.X + (viewport.Width / 2) - (TileSize / 2),
-            viewport.Y + (viewport.Height / 2) - (TileSize / 2),
-            TileSize,
-            TileSize);
+        var viewportWidthTiles = GetFieldViewportWidthTiles();
+        var viewportHeightTiles = GetFieldViewportHeightTiles();
+        var maxCameraX = Math.Max(0, map.GetLength(1) - viewportWidthTiles);
+        var maxCameraY = Math.Max(0, map.GetLength(0) - viewportHeightTiles);
+
+        return new Point(
+            Math.Clamp(player.TilePosition.X - (viewportWidthTiles / 2), 0, maxCameraX),
+            Math.Clamp(player.TilePosition.Y - (viewportHeightTiles / 2), 0, maxCameraY));
+    }
+
+    private Point GetFieldCameraAnimationOffset(Point cameraOrigin, Point animationOffset)
+    {
+        var maxCameraX = Math.Max(0, map.GetLength(1) - GetFieldViewportWidthTiles());
+        var maxCameraY = Math.Max(0, map.GetLength(0) - GetFieldViewportHeightTiles());
+
+        return new Point(
+            cameraOrigin.X > 0 && cameraOrigin.X < maxCameraX ? animationOffset.X : 0,
+            cameraOrigin.Y > 0 && cameraOrigin.Y < maxCameraY ? animationOffset.Y : 0);
+    }
+
+    private Point GetPlayerAnimationOffset(Point cameraOrigin, Point animationOffset)
+    {
+        var cameraOffset = GetFieldCameraAnimationOffset(cameraOrigin, animationOffset);
+        return new Point(animationOffset.X - cameraOffset.X, animationOffset.Y - cameraOffset.Y);
+    }
+
+    private Rectangle GetFieldTileRectangle(Rectangle viewport, Point cameraOrigin, Point tile, Point offset)
+    {
+        var x = viewport.X + ((tile.X - cameraOrigin.X) * TileSize) + offset.X;
+        var y = viewport.Y + ((tile.Y - cameraOrigin.Y) * TileSize) + offset.Y;
+
+        return new Rectangle(x, y, TileSize, TileSize);
     }
 
     private int GetTileIdAtWorldPosition(Point tile)
@@ -233,23 +270,13 @@ public partial class Form1
 
     private bool TryTransitionFromTile(Point tile)
     {
-        switch (currentFieldMap)
+        if (!fieldTransitionService.TryGetTransition(currentFieldMap, tile, out var transition))
         {
-            case FieldMapId.Hub when tile.X >= 9 && tile.X <= 10 && tile.Y <= 1:
-                SwitchFieldMap(FieldMapId.Castle, CastleEntryTile);
-                return true;
-            case FieldMapId.Hub when tile.X >= map.GetLength(1) - 1 && tile.Y >= 7 && tile.Y <= 8:
-                SwitchFieldMap(FieldMapId.Field, FieldEntryTile);
-                return true;
-            case FieldMapId.Castle when tile.X >= 9 && tile.X <= 10 && tile.Y >= map.GetLength(0) - 1:
-                SwitchFieldMap(FieldMapId.Hub, HubFromCastleTile);
-                return true;
-            case FieldMapId.Field when tile.X <= 0 && tile.Y >= 7 && tile.Y <= 8:
-                SwitchFieldMap(FieldMapId.Hub, HubFromFieldTile);
-                return true;
-            default:
-                return false;
+            return false;
         }
+
+        SwitchFieldMap(transition.ToMapId, transition.DestinationTile);
+        return true;
     }
 
     private WeaponDefinition? GetEquippedWeapon()

@@ -1,5 +1,6 @@
 using DragonGlareAlpha.Data;
 using DragonGlareAlpha.Domain;
+using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
 
@@ -54,12 +55,17 @@ public partial class Form1
 
     private bool IsWalkableTile(Point tile)
     {
-        if (tile.X < 0 || tile.Y < 0 || tile.X >= map.GetLength(1) || tile.Y >= map.GetLength(0))
+        return IsWalkableTile(map, tile);
+    }
+
+    private static bool IsWalkableTile(int[,] fieldMap, Point tile)
+    {
+        if (tile.X < 0 || tile.Y < 0 || tile.X >= fieldMap.GetLength(1) || tile.Y >= fieldMap.GetLength(0))
         {
             return false;
         }
 
-        return map[tile.Y, tile.X] != 1;
+        return fieldMap[tile.Y, tile.X] != MapFactory.WallTile;
     }
 
     private bool TryMovePlayer(Point movement)
@@ -85,6 +91,32 @@ public partial class Form1
 
         PersistProgress();
         return true;
+    }
+
+    private void SetPlayerFacingDirection(Point movement)
+    {
+        if (movement.X < 0)
+        {
+            playerFacingDirection = PlayerFacingDirection.Left;
+            return;
+        }
+
+        if (movement.X > 0)
+        {
+            playerFacingDirection = PlayerFacingDirection.Right;
+            return;
+        }
+
+        if (movement.Y < 0)
+        {
+            playerFacingDirection = PlayerFacingDirection.Up;
+            return;
+        }
+
+        if (movement.Y > 0)
+        {
+            playerFacingDirection = PlayerFacingDirection.Down;
+        }
     }
 
     private static bool IsAdjacent(Point a, Point b)

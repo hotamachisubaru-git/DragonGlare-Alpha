@@ -282,6 +282,7 @@ public partial class Form1
 
         if (movement != Point.Empty && movementCooldown == 0)
         {
+            SetPlayerFacingDirection(movement);
             var moved = TryMovePlayer(movement);
             if (!moved)
             {
@@ -309,8 +310,7 @@ public partial class Form1
     {
         if (currentEncounter is null)
         {
-            battleFlowState = BattleFlowState.CommandSelection;
-            ResetBattleVisualEffects();
+            ResetBattleState();
             ChangeGameState(GameState.Field);
             return;
         }
@@ -355,7 +355,7 @@ public partial class Form1
 
         if (WasPressed(Keys.Escape))
         {
-            battleMessage = "うまく にげきった！";
+            battleMessage = BattleEscapeMessage;
             battleFlowState = BattleFlowState.Escaped;
             PersistProgress();
             return;
@@ -419,10 +419,8 @@ public partial class Form1
 
         currentEncounter = pendingEncounter;
         pendingEncounter = null;
-        battleCursorRow = 0;
-        battleCursorColumn = 0;
+        ResetBattleSelectionState();
         battleFlowState = BattleFlowState.Intro;
-        ResetBattleVisualEffects();
         battleMessage = GetBattleEncounterMessage(currentEncounter.Enemy.Name);
         ChangeGameState(GameState.Battle);
     }
@@ -449,9 +447,7 @@ public partial class Form1
 
             if (shopPromptCursor == 0)
             {
-                shopPhase = ShopPhase.BuyList;
-                ResetShopListSelection();
-                shopMessage = "＊「なにを かっていくかい？」";
+                OpenShopCatalog();
                 return;
             }
 
@@ -472,10 +468,7 @@ public partial class Form1
 
         if (WasShopBackPressed())
         {
-            shopPhase = ShopPhase.Welcome;
-            shopPromptCursor = 0;
-            ResetShopListSelection();
-            shopMessage = "＊「ほかに ようじは あるかい？」";
+            ReturnToShopPrompt(ShopReturnMessage);
             return;
         }
 
@@ -487,24 +480,19 @@ public partial class Form1
         var selectedEntry = visibleEntries[shopItemCursor];
         if (selectedEntry.Type == ShopMenuEntryType.PreviousPage)
         {
-            ResetShopListSelection(shopPageIndex - 1);
-            shopMessage = "＊「なにを かっていくかい？」";
+            ChangeShopPage(-1);
             return;
         }
 
         if (selectedEntry.Type == ShopMenuEntryType.NextPage)
         {
-            ResetShopListSelection(shopPageIndex + 1);
-            shopMessage = "＊「なにを かっていくかい？」";
+            ChangeShopPage(1);
             return;
         }
 
         if (selectedEntry.Type == ShopMenuEntryType.Quit)
         {
-            shopPhase = ShopPhase.Welcome;
-            shopPromptCursor = 0;
-            ResetShopListSelection();
-            shopMessage = "＊「また きてくれよな！」";
+            ReturnToShopPrompt(ShopFarewellMessage);
             return;
         }
 
@@ -523,24 +511,15 @@ public partial class Form1
 
     private void EnterShopBuy()
     {
-        shopPhase = ShopPhase.Welcome;
-        shopPromptCursor = 0;
-        ResetShopListSelection();
-        shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
+        ResetShopState();
         ChangeGameState(GameState.ShopBuy);
         PlaySe(SoundEffect.Dialog);
     }
 
     private void FinishBattle()
     {
-        currentEncounter = null;
-        pendingEncounter = null;
-        encounterTransitionFrames = 0;
         ResetEncounterCounter();
-        ResetBattleVisualEffects();
-        battleFlowState = BattleFlowState.CommandSelection;
-        battleCursorRow = 0;
-        battleCursorColumn = 0;
+        ResetBattleState();
         ChangeGameState(GameState.Field);
         PersistProgress();
     }
@@ -572,10 +551,7 @@ public partial class Form1
     {
         pendingEncounter = encounter;
         encounterTransitionFrames = EncounterTransitionDuration;
-        battleCursorRow = 0;
-        battleCursorColumn = 0;
-        battleFlowState = BattleFlowState.CommandSelection;
-        ResetBattleVisualEffects();
+        ResetBattleSelectionState();
         ResetEncounterCounter();
         ChangeGameState(GameState.EncounterTransition);
         PlaySe(SoundEffect.Dialog);

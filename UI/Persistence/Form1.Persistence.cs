@@ -1,6 +1,7 @@
 using DragonGlareAlpha.Domain;
 using DragonGlareAlpha.Domain.Player;
 using DragonGlareAlpha.Persistence;
+using DragonGlareAlpha.Services;
 
 namespace DragonGlareAlpha;
 
@@ -43,23 +44,7 @@ public partial class Form1
         activeSaveSlot = 0;
         saveSlotCursor = 0;
         playerName.Clear();
-        player = progressionService.CreateNewPlayer(UiLanguage.Japanese, PlayerStartTile);
-        SetFieldMap(FieldMapId.Hub);
-        currentEncounter = null;
-        battleFlowState = BattleFlowState.CommandSelection;
-        CloseFieldDialog();
-        isFieldStatusVisible = false;
-        movementCooldown = 0;
-        ResetFieldMovementAnimation();
-        encounterTransitionFrames = 0;
-        pendingEncounter = null;
-        ResetBattleVisualEffects();
-        ResetEncounterCounter();
-        shopPhase = ShopPhase.Welcome;
-        shopPromptCursor = 0;
-        ResetShopListSelection();
-        battleMessage = "まものが あらわれた！";
-        shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
+        ApplyExplorationSession(progressionService.CreateNewPlayer(UiLanguage.Japanese, PlayerStartTile), FieldMapId.Hub);
         ChangeGameState(GameState.LanguageSelection);
     }
 
@@ -71,52 +56,20 @@ public partial class Form1
         }
 
         activeSaveSlot = slotNumber;
-        selectedLanguage = string.Equals(save.Language, "en", StringComparison.OrdinalIgnoreCase)
-            ? UiLanguage.English
-            : UiLanguage.Japanese;
+        var restored = SaveDataMapper.Restore(save, PlayerStartTile);
+        var loadedPlayer = restored.Player;
+        loadedPlayer.Name = TrimPlayerName(loadedPlayer.Name);
 
-        var loadedPlayer = PlayerProgress.CreateDefault(PlayerStartTile, selectedLanguage);
-        var loadedMapId = Enum.IsDefined(typeof(FieldMapId), save.CurrentFieldMap) ? save.CurrentFieldMap : FieldMapId.Hub;
-        SetFieldMap(loadedMapId);
-        loadedPlayer.Name = TrimPlayerName(save.Name);
-        loadedPlayer.TilePosition = new Point(save.PlayerX, save.PlayerY);
-        loadedPlayer.Level = save.Level;
-        loadedPlayer.Experience = save.Experience;
-        loadedPlayer.MaxHp = save.MaxHp;
-        loadedPlayer.CurrentHp = save.CurrentHp;
-        loadedPlayer.MaxMp = save.MaxMp;
-        loadedPlayer.CurrentMp = save.CurrentMp;
-        loadedPlayer.BaseAttack = save.BaseAttack;
-        loadedPlayer.BaseDefense = save.BaseDefense;
-        loadedPlayer.Gold = save.Gold;
-        loadedPlayer.EquippedWeaponId = save.EquippedWeaponId;
-        loadedPlayer.EquippedArmorId = save.EquippedArmorId;
-        loadedPlayer.Inventory = save.Inventory?.Select(entry => entry.Clone()).ToList() ?? [];
-        loadedPlayer.Normalize();
-
-        if (!IsWalkableTile(loadedPlayer.TilePosition) || IsBlockedByFieldEvent(loadedPlayer.TilePosition))
+        var loadedMapId = restored.MapId;
+        if (!IsWalkableTile(MapFactory.CreateMap(loadedMapId), loadedPlayer.TilePosition) ||
+            IsBlockedByFieldEvent(loadedMapId, loadedPlayer.TilePosition))
         {
-            SetFieldMap(FieldMapId.Hub);
+            loadedMapId = FieldMapId.Hub;
             loadedPlayer.TilePosition = PlayerStartTile;
         }
 
-        player = loadedPlayer;
-        SyncPlayerNameBuffer(player.Name);
-        currentEncounter = null;
-        battleFlowState = BattleFlowState.CommandSelection;
-        CloseFieldDialog();
-        isFieldStatusVisible = false;
-        movementCooldown = 0;
-        ResetFieldMovementAnimation();
-        encounterTransitionFrames = 0;
-        pendingEncounter = null;
-        ResetBattleVisualEffects();
-        ResetEncounterCounter();
-        shopPhase = ShopPhase.Welcome;
-        shopPromptCursor = 0;
-        ResetShopListSelection();
-        battleMessage = "まものが あらわれた！";
-        shopMessage = "＊「いらっしゃい！\n　なにを かっていくかい？」";
+        selectedLanguage = restored.Language;
+        ApplyExplorationSession(loadedPlayer, loadedMapId);
         return true;
     }
 
@@ -154,29 +107,7 @@ public partial class Form1
 
         player.Language = selectedLanguage;
 
-        var save = new SaveData
-        {
-            Version = 7,
-            SavedAtUtc = DateTime.UtcNow,
-            Language = selectedLanguage == UiLanguage.English ? "en" : "ja",
-            Name = TrimPlayerName(player.Name),
-            SlotNumber = activeSaveSlot,
-            CurrentFieldMap = currentFieldMap,
-            PlayerX = player.TilePosition.X,
-            PlayerY = player.TilePosition.Y,
-            Level = player.Level,
-            Experience = player.Experience,
-            MaxHp = player.MaxHp,
-            CurrentHp = player.CurrentHp,
-            MaxMp = player.MaxMp,
-            CurrentMp = player.CurrentMp,
-            BaseAttack = player.BaseAttack,
-            BaseDefense = player.BaseDefense,
-            Gold = player.Gold,
-            EquippedWeaponId = player.EquippedWeaponId,
-            EquippedArmorId = player.EquippedArmorId,
-            Inventory = player.Inventory.Select(entry => entry.Clone()).ToList()
-        };
+        var save = SaveDataMapper.Create(player, selectedLanguage, currentFieldMap, activeSaveSlot);
 
         try
         {

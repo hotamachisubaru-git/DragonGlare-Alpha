@@ -11,7 +11,6 @@ public sealed class SaveService
 {
     public const int SlotCount = 3;
 
-    private const int CurrentSaveVersion = 7;
     private const int SignedSaveVersion = 5;
     private const int SlotBoundSignatureVersion = 6;
     private const int ArmorEquipmentVersion = 7;
@@ -84,7 +83,7 @@ public sealed class SaveService
 
         Directory.CreateDirectory(saveRootDirectory);
 
-        saveData.Version = CurrentSaveVersion;
+        saveData.Version = SaveData.CurrentVersion;
         saveData.SlotNumber = slotNumber;
         saveData.Signature = ComputeSignature(saveData);
 
