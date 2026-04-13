@@ -25,6 +25,10 @@ TestResults/
 !/Assets/README.md
 !/Assets/Sprites/
 !/Assets/Portraits/
+!/Assets/Scripts/
+!/Assets/Scripts/**
+!/Assets/Resources/
+!/Assets/Resources/**
 /Assets/Sprites/*
 !/Assets/Sprites/NPC/
 !/Assets/Sprites/NPC/**
@@ -32,3 +36,17 @@ TestResults/
 !/Assets/Portraits/NPC/**
 /アセット/
 /JF-Dot-ShinonomeMin14.ttf
+
+# Unity
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/MemoryCaptures/
+/Packages/*
+!/Packages/manifest.json
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+/UserSettings/
