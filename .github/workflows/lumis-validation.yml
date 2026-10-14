@@ -1,0 +1,61 @@
+name: Temporary Lumis integration validation
+
+on:
+  push:
+    branches:
+      - validation/lumis-security-unity-20261014
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-tests:
+    name: Windows RPG and Unity-port core tests
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test original MonoGame RPG
+        shell: pwsh
+        run: dotnet test DragonGlareAlpha.Tests/DragonGlareAlpha.Tests.csproj -c Release
+      - name: Test compatible Unity core
+        shell: pwsh
+        run: dotnet test UnityPort/Core/Tests/DragonGlare.Core.Tests.csproj -c Release
+      - name: Verify temporary Lumis wiring (does not run Unity)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content Packages/manifest.json -Raw | ConvertFrom-Json
+          $package = $manifest.dependencies.'jp.hotamachi.lumis.security'
+          if ($package -notlike '*#150e89d195409e18ee2a4818d9b12041375f071f') {
+            throw 'Lumis package URL does not pin the reviewed commit.'
+          }
+          $bootstrap = Get-Content Assets/DragonGlareUnity/Runtime/DragonGlare.Unity.Bootstrap.asmdef -Raw | ConvertFrom-Json
+          if (-not ($bootstrap.references -contains 'Lumis.Security' -and $bootstrap.references -contains 'Lumis.Security.Unity')) {
+            throw 'Bootstrap assembly definitions have no Lumis references.'
+          }
+          $editor = Get-Content Assets/DragonGlareUnity/Editor/DragonGlare.Unity.Editor.asmdef -Raw | ConvertFrom-Json
+          if (-not ($editor.references -contains 'Lumis.Security.Unity')) {
+            throw 'Editor assembly definition has no Lumis reference.'
+          }
+          $scene = Get-Content Assets/DragonGlareUnity/Scenes/DragonGlare3D.unity -Raw
+          if (-not $scene.Contains('guid: 6b326ae544df5873b1cb27261dbb9cbc')) {
+            throw 'Bootstrap scene lacks LumisAntiCheat component.'
+          }
+          $bootSource = Get-Content Assets/DragonGlareUnity/Runtime/DragonGlareBootstrap.cs -Raw
+          $runtimeSource = Get-Content UnityPort/Runtime/DragonGlareBehaviour.cs -Raw
+          $sessionSource = Get-Content UnityPort/Runtime/UnitySession.cs -Raw
+          $validationSource = Get-Content UnityPort/Validate-Unity.ps1 -Raw
+          if (-not $bootSource.Contains('antiCheat.IsReady') -or
+              -not $bootSource.Contains('BlockSavesForSecurityViolation') -or
+              -not $runtimeSource.Contains('BlockSavesForSecurityViolation') -or
+              -not $sessionSource.Contains('BlockForExternalSecurityViolation') -or
+              -not $runtimeSource.Contains('LumisValidation-20261014') -or
+              -not $validationSource.Contains("'jp.hotamachi.lumis.security' = $lumisSource")) {
+            throw 'Temporary security gating, save isolation, or validation wiring is missing.'
+          }
+          Write-Host 'Lumis integration references and save guards found.'
