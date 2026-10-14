@@ -1,0 +1,14 @@
+{
+    "passed": true,
+    "splashScreenEnabled": false,
+    "unityLogoEnabled": false,
+    "unityVersion": "6000.7.0b2",
+    "scenePath": "Assets/DragonGlareUnity/Scenes/DragonGlare3D.unity",
+    "outputPath": "D:\\Dev\\Unity\\DragonGlareAlpha\\.codex-build\\Unity3D-20261014-102903\\.codex-build\\unity-validation\\DragonGlare3D.exe",
+    "result": "Succeeded",
+    "errorCount": 0,
+    "warningCount": 0,
+    "totalSizeBytes": 161191091,
+    "durationSeconds": 3.395238,
+    "messages": []
+}

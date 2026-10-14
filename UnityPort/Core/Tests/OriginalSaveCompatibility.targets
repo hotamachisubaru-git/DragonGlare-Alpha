@@ -1,0 +1,6 @@
+<Project>
+  <!-- Imported only by the original project reference in the compatibility tests. -->
+  <ItemGroup>
+    <None Update="@(None)" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+</Project>

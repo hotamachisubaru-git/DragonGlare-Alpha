@@ -1,0 +1,14 @@
+{
+  "name": "DragonGlare.Unity.Editor",
+  "rootNamespace": "",
+  "references": ["DragonGlare.Unity.Bootstrap"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": ["DragonGlare.Core.dll"],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

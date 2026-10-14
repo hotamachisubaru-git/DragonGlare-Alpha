@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>DragonGlare.Unity.Runtime</AssemblyName>
+    <UnityEditorDirectory Condition="'$(UnityEditorDirectory)' == ''">C:\Program Files\Unity\Hub\Editor\6000.7.0b2\Editor</UnityEditorDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/DragonGlare.Core.csproj" />
+    <Reference Include="$(UnityEditorDirectory)/Data/Managed/UnityEngine/UnityEngine*.dll"><Private>false</Private></Reference>
+    <Compile Include="*.cs" />
+  </ItemGroup>
+  <Target Name="GenerateCompatiblePresentationSources" BeforeTargets="CoreCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)../Prepare-Runtime.ps1&quot;" />
+    <ItemGroup><Compile Include="obj/PortSources/**/*.cs" /></ItemGroup>
+  </Target>
+</Project>

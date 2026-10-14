@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>DragonGlare.Core</AssemblyName>
+    <RootNamespace>DragonGlareAlpha</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Domain/**/*.cs" LinkBase="Domain" />
+    <Compile Include="../../Data/**/*.cs" LinkBase="Data" />
+    <Compile Include="../../Services/**/*.cs" Exclude="../../Services/PlatformSupportService.cs;../../Services/LaunchSettingsService.cs" LinkBase="Services" />
+    <Compile Include="../../Persistence/**/*.cs" Exclude="../../Persistence/SaveService.cs" LinkBase="Persistence" />
+    <Compile Include="../../Security/TamperDetectedException.cs" Link="Security/TamperDetectedException.cs" />
+    <Compile Include="CompilerSupport.cs" />
+    <Compile Include="UnityAntiCheatService.cs" />
+    <Compile Include="WindowsDataProtection.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.6" />
+  </ItemGroup>
+  <Target Name="GenerateCompatibleCoreSources" BeforeTargets="CoreCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Generate-CompatibleSources.ps1&quot; -OutputDirectory &quot;$(MSBuildThisFileDirectory)$(IntermediateOutputPath)Generated&quot;" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)Generated/*.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

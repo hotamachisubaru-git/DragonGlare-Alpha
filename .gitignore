@@ -35,6 +35,9 @@ GEMINI.md
 
 # Assets
 /Assets/*
+!/Assets/DragonGlareUnity/
+!/Assets/DragonGlareUnity.meta
+!/Assets/DragonGlareUnity/**
 !/Assets/README.md
 !/Assets/Sprites/
 !/Assets/Portraits/
@@ -45,3 +48,16 @@ GEMINI.md
 !/Assets/Portraits/NPC/**
 /アセット/
 /JF-Dot-ShinonomeMin14.ttf
+
+# Unity editor state and generated external port builds
+/Library/
+/Temp/
+/Logs/
+/UserSettings/
+/*.csproj.user
+/Synaptic*.csproj
+/DragonGlare.Unity.Bootstrap.csproj
+/DragonGlare.Unity.Editor.csproj
+*.pdb
+*.pdb.meta
+/ProjectSettings/PackageManager.policy
