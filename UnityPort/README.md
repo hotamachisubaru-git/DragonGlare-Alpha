@@ -91,3 +91,54 @@ dotnet test UnityPort\Core\Tests\DragonGlare.Core.Tests.csproj
 ```
 
 画面の検証は、バックグラウンド実行を有効にした通常のプレイヤーで行います。バッチプレイヤーではIMGUIが描画されず黒画像になるため、画像の画素・明暗差・色の変化も検証します。
+
+## Lumis Security統合検証（一時コピー専用）
+
+`validation/lumis-security-unity-20261014` は `main` から分離した**実験用ブランチ**です。
+`main`、元のMonoGame版、通常のUnityセーブ形式は変更しません。
+
+### Windows側に独立した作業コピーを作る
+
+元リポジトリのディレクトリで以下を実行します。
+
+```powershell
+git fetch origin validation/lumis-security-unity-20261014
+git worktree add ..\DragonGlare-Lumis-TEMP origin/validation/lumis-security-unity-20261014
+cd ..\DragonGlare-Lumis-TEMP
+.\UnityPort\Build-Unity.ps1
+.\UnityPort\Validate-Unity.ps1
+```
+
+`Build-Unity.ps1` は**Unityを起動する前**に実行してください。
+起動スクリプトは変更済みの `DragonGlare.Unity.Runtime.dll` 内の新しいセーブ抑止APIを呼び出すため、
+リポジトリに保存されている古いビルドDLLだけでは新しいブートストラップをコンパイルできません。
+既にUnityを起動している場合はDLLの再読み込みが終わってからPlayしてください。
+
+Git URLパッケージの取得にはGitとネットワーク接続が必要です。
+`Validate-Unity.ps1` は `.codex-build` 内に独立したUnityプロジェクトを作り、
+元の `Packages/manifest.json` から**コミットSHA固定のLumis Security**だけを引き継ぎます。
+Unity Editorは `6000.7.0b2` を前提とし、場所が違う場合は `-UnityEditorDirectory` を指定してください。
+
+### 検証版での動作
+
+- 既存の `DragonGlare3D.unity` のルートに `LumisAntiCheat` を追加しています。
+- `LumisAntiCheat.IsReady` がtrueのときだけ `DragonGlareBehaviour` を生成します。
+- Lumisの実行中の違反イベントを、元からある `skipSaveOnClose` のガードに連携します。
+- `ProtectedInt` は引き続き使用し、**セーブv10・Windows DPAPI・署名形式は置き換えません**。
+- 検証ブランチでは通常プレイの保存先を `Application.persistentDataPath/LumisValidation-20261014/saves` に変更します。
+  元の `Application.persistentDataPath/saves` には保存しません。元版セーブの取り込み先も同じ検証用フォルダです。
+- 元からある `-dragonGlareSmoke` の自動試験は、別途指定した検証フォルダを引き続き使用します。
+- EditorではLumisの検査が既定でスキップされます。Windows Playerの実検査は別途必要です。
+- Level 2のSecure数値型とLevel 5の新セーブ形式への一括置換は行っていません（元の保護値と互換セーブを維持するため）。
+
+### 確認事項
+
+1. パッケージ取得・Unity 6.7 Betaのアセンブリ再コンパイルがエラーなしで完了する。
+2. Editorで通常Playできる（Editor bypass時）。
+3. Windows Playerで起動検査を通過した場合のみゲームが始まる。
+4. 違反がある場合にゲーム進行とセーブを停止し、既存の正しいセーブファイルを保護する。
+5. ショップ・戦闘・銀行・セーブ／ロードの既存テストが維持される。
+
+**注意:** このブランチのGitHub上のソース変更だけではビルド済みUnity DLLは更新されません。
+実際のUnity 6.7 Beta Editor、Windows Player、IL2CPPでの統合検証はWindows上で実行してください。
+CIで実行できる.NET単体試験はUnity実機試験の代わりにはなりません。
