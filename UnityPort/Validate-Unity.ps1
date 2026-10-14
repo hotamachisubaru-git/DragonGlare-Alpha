@@ -10,7 +10,26 @@ Copy-Item -LiteralPath (Join-Path $repo 'Assets/DragonGlareUnity') -Destination 
 Copy-Item -LiteralPath (Join-Path $repo 'ProjectSettings') -Destination $validation -Recurse
 [void](New-Item -ItemType Directory -Path (Join-Path $validation 'Packages'))
 # This isolates the RPG from unrelated editor plugins while using the same editor and settings.
-$manifest = '{"dependencies":{"com.unity.modules.audio":"1.0.0","com.unity.modules.imgui":"1.0.0","com.unity.modules.imageconversion":"1.0.0","com.unity.modules.jsonserialize":"1.0.0","com.unity.modules.particlesystem":"1.0.0","com.unity.modules.physics":"1.0.0","com.unity.modules.screencapture":"1.0.0"}}'
+# Keep the temporary Unity project isolated, but use the exact Lumis package
+# version selected by the source project (no mutable main branch reference).
+$mainManifestPath = Join-Path $repo 'Packages/manifest.json'
+$mainManifest = Get-Content -LiteralPath $mainManifestPath -Raw | ConvertFrom-Json
+$lumisSource = $mainManifest.dependencies.'jp.hotamachi.lumis.security'
+if ([string]::IsNullOrWhiteSpace($lumisSource)) {
+    throw "Lumis Security must be installed in $mainManifestPath before validation."
+}
+$manifest = @{
+    dependencies = [ordered]@{
+        'com.unity.modules.audio' = '1.0.0'
+        'com.unity.modules.imgui' = '1.0.0'
+        'com.unity.modules.imageconversion' = '1.0.0'
+        'com.unity.modules.jsonserialize' = '1.0.0'
+        'com.unity.modules.particlesystem' = '1.0.0'
+        'com.unity.modules.physics' = '1.0.0'
+        'com.unity.modules.screencapture' = '1.0.0'
+        'jp.hotamachi.lumis.security' = $lumisSource
+    }
+} | ConvertTo-Json -Depth 5
 [IO.File]::WriteAllText((Join-Path $validation 'Packages/manifest.json'), $manifest)
 $exe = Join-Path $UnityEditorDirectory 'Unity.exe'
 $arguments = @('-batchmode', '-projectPath', ('"' + $validation + '"'), '-executeMethod', 'DragonGlareEditor.ValidateAndBuild', '-quit', '-logFile', ('"' + (Join-Path $validation 'build.log') + '"'))
