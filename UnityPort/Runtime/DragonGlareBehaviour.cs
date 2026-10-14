@@ -31,7 +31,7 @@ public sealed class DragonGlareBehaviour : MonoBehaviour
         var args = Environment.GetCommandLineArgs();
         smoke = args.Contains("-dragonGlareSmoke");
         var index = Array.IndexOf(args, "-dragonGlareSmokeOutput");
-        var dataRoot = smoke ? (index >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : Path.Combine(Application.persistentDataPath, "Smoke", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"))) : Application.persistentDataPath;
+        var dataRoot = smoke ? (index >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : Path.Combine(Application.persistentDataPath, "Smoke", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"))) : Path.Combine(Application.persistentDataPath, "LumisValidation-20261014");
         Session = new GameSession(Path.Combine(dataRoot, "saves"), Path.Combine(dataRoot, "launch_settings.json"));
         World = new DragonGlareWorld(transform);
         Session.WorldTexture = World.Texture;
