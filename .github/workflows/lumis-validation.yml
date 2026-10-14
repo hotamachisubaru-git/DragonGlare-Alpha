@@ -19,12 +19,19 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Test original MonoGame RPG
+      - name: Prepare ignored icon placeholder for test-only build
         shell: pwsh
-        run: dotnet test DragonGlareAlpha.Tests/DragonGlareAlpha.Tests.csproj -c Release
+        run: |
+          # The original icon is deliberately gitignored; do not ship this placeholder.
+          if (-not (Test-Path -LiteralPath Dragon_glare.ico -PathType Leaf)) {
+            [IO.File]::WriteAllBytes((Join-Path $PWD 'Dragon_glare.ico'), [byte[]]@())
+          }
       - name: Test compatible Unity core
         shell: pwsh
-        run: dotnet test UnityPort/Core/Tests/DragonGlare.Core.Tests.csproj -c Release
+        run: dotnet test UnityPort/Core/Tests/DragonGlare.Core.Tests.csproj -c Release -p:ApplicationIcon=
+      - name: Test original MonoGame RPG (without untracked icon)
+        shell: pwsh
+        run: dotnet test DragonGlareAlpha.Tests/DragonGlareAlpha.Tests.csproj -c Release -p:ApplicationIcon=
       - name: Verify temporary Lumis wiring (does not run Unity)
         shell: pwsh
         run: |
