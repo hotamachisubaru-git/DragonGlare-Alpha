@@ -195,7 +195,7 @@ public static class DragonGlareEditor
         var sourceRoot = EditorUtility.OpenFolderPanel("Select MonoGame save folder",
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DragonGlareAlpha"), string.Empty);
         if (string.IsNullOrEmpty(sourceRoot)) return;
-        var destinationRoot = Path.Combine(Application.persistentDataPath, "saves");
+        var destinationRoot = Path.Combine(Application.persistentDataPath, "LumisValidation-20261014", "saves");
         if (string.Equals(Path.GetFullPath(sourceRoot), Path.GetFullPath(destinationRoot), StringComparison.OrdinalIgnoreCase))
         {
             EditorUtility.DisplayDialog("DragonGlare", "Select the original MonoGame save folder.\nThe Unity save folder was selected.", "OK");
