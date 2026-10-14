@@ -86,6 +86,13 @@ public partial class DragonGlareAlpha
             full ? UnityEngine.Screen.currentResolution.height : size.Height,
             full ? UnityEngine.FullScreenMode.FullScreenWindow : UnityEngine.FullScreenMode.Windowed);
     }
+    /// <summary>Blocks progress saving when an external security service finds a violation.</summary>
+    public void BlockForExternalSecurityViolation(string message)
+    {
+        HandleSecurityViolation(string.IsNullOrWhiteSpace(message)
+            ? "Lumis Security が整合性違反を検出しました。" : message);
+    }
+
     private void HandleSecurityViolation(string message)
     {
         if (skipSaveOnClose) return;
