@@ -1,12 +1,17 @@
 {
   "name": "DragonGlare.Unity.Bootstrap",
   "rootNamespace": "DragonGlareUnity",
-  "references": [],
+  "references": [
+    "Lumis.Security",
+    "Lumis.Security.Unity"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": true,
-  "precompiledReferences": ["DragonGlare.Unity.Runtime.dll"],
+  "precompiledReferences": [
+    "DragonGlare.Unity.Runtime.dll"
+  ],
   "autoReferenced": true,
   "defineConstraints": [],
   "versionDefines": [],
