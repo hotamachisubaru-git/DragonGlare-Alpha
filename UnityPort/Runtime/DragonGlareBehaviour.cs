@@ -53,7 +53,7 @@ public sealed class DragonGlareBehaviour : MonoBehaviour
 
     private void Update()
     {
-        if (!ready) return;
+        if (!ready || Session.IsSecurityBlocked) return;
         if (!smoke) ReadInput();
         clock += Math.Min(Time.unscaledDeltaTime, 0.25f);
         while (clock >= 1d / 60d)
@@ -147,6 +147,16 @@ public sealed class DragonGlareBehaviour : MonoBehaviour
         var clip = name is null ? null : Resources.Load<AudioClip>("DragonGlare/SE/" + name);
         if (clip is not null) sound.PlayOneShot(clip, 0.9f);
     }
+    /// <summary>
+    /// Called by the Unity-side Lumis host before quitting. The existing save
+    /// guard then prevents untrusted progress from overwriting a valid save.
+    /// </summary>
+    public void BlockSavesForSecurityViolation(string message)
+    {
+        if (Session == null || closed) return;
+        Session.BlockForExternalSecurityViolation(message);
+    }
+
     private void OnApplicationQuit() => Close();
     private void OnDestroy() => Close();
     private void Close()
