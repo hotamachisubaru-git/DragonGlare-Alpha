@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using DragonGlareAlpha.Persistence;
 using DragonGlareUnity;
+using Lumis.Unity;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -175,6 +176,7 @@ public static class DragonGlareEditor
         {
             var root = new GameObject("DragonGlare 3D RPG");
             SceneManager.MoveGameObjectToScene(root, scene);
+            root.AddComponent<LumisAntiCheat>();
             root.AddComponent<DragonGlareBootstrap>();
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
                 throw new IOException("Could not save the DragonGlare 3D scene.");
@@ -330,8 +332,9 @@ public static class DragonGlareEditor
         try
         {
             var roots = scene.GetRootGameObjects();
-            if (roots.Length != 1 || roots[0].GetComponent<DragonGlareBootstrap>() == null)
-                throw new InvalidOperationException("DragonGlare3D must contain one root with the DragonGlareBootstrap component.");
+            if (roots.Length != 1 || roots[0].GetComponent<DragonGlareBootstrap>() == null ||
+                roots[0].GetComponent<LumisAntiCheat>() == null)
+                throw new InvalidOperationException("DragonGlare3D must contain one root with DragonGlareBootstrap and LumisAntiCheat components.");
             if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(roots[0]) != 0)
                 throw new InvalidOperationException("The DragonGlare scene contains a missing script.");
         }
