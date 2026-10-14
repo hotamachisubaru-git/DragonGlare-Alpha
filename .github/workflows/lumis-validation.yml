@@ -26,6 +26,10 @@ jobs:
           if (-not (Test-Path -LiteralPath Dragon_glare.ico -PathType Leaf)) {
             [IO.File]::WriteAllBytes((Join-Path $PWD 'Dragon_glare.ico'), [byte[]]@())
           }
+          if (-not (Test-Path -LiteralPath Assets/JF-Dot-ShinonomeMin14.ttf -PathType Leaf)) {
+            # The RPG logic tests do not render text; this is not a distributable font.
+            [IO.File]::WriteAllBytes((Join-Path $PWD 'Assets/JF-Dot-ShinonomeMin14.ttf'), [byte[]]@())
+          }
       - name: Test compatible Unity core
         shell: pwsh
         run: dotnet test UnityPort/Core/Tests/DragonGlare.Core.Tests.csproj -c Release -p:ApplicationIcon=
