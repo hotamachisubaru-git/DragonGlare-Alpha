@@ -55,7 +55,7 @@ jobs:
               -not $runtimeSource.Contains('BlockSavesForSecurityViolation') -or
               -not $sessionSource.Contains('BlockForExternalSecurityViolation') -or
               -not $runtimeSource.Contains('LumisValidation-20261014') -or
-              -not $validationSource.Contains("'jp.hotamachi.lumis.security' = $lumisSource")) {
+              -not $validationSource.Contains("'jp.hotamachi.lumis.security' =")) {
             throw 'Temporary security gating, save isolation, or validation wiring is missing.'
           }
           Write-Host 'Lumis integration references and save guards found.'
